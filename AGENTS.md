@@ -3,6 +3,7 @@
 This repository maintains and distributes the iterated Skill. Workflow research and original evidence live in a separate research repository, referenced here as `<research-repo>`.
 
 > 本机交接与机器清单不在公开仓库：见本地治理目录的 `pdw-HANDOFF-20261017-opencode.md`。
+> **最新本机交接（含本机路径、不入库）**：`.pdw/HANDOFF-20261017-final.md` —— 新会话开工先读它。
 
 ## 文档地图（顶层 6 份，各读一份责任）
 
