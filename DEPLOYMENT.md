@@ -121,6 +121,12 @@ Copy-Item 'skills\personal-dev-workflow\*' "$env:USERPROFILE\.agents_four_skills
 **期望的比对结论**：9 个文件里只有 `scripts/drivers.test.mjs`、`scripts/pdw.test.mjs` 各差 1 行（布局探测），
 其余逐字节相同。
 
+上游重切同版本号的打包命令（在研究位执行）：`python scripts\pack-release.py`——版本号默认取技能 frontmatter 的
+`metadata.version`（`--version` 可覆盖，`--dry-run` 只列文件），它重建 ZIP、`manifest.json` 与
+`docs/evidence/pdw-package-<版本去掉 -local 后缀>.json`（如 `1.3.3-local` → `pdw-package-1.3.3.json`，
+**不要带 `-local`**，否则 manifest 会指向另一个文件），并自检 `zip_crc` / `source_hash_match` / 历史包未变；
+重切会覆盖该版本的 ZIP，旧字节要另存（本仓库 `.pdw/upstream-package-prepack/` 就存了两代）。
+
 ### 步骤 2 · 四个 agent 的使用位（丙区原生注册，**不用 junction**）
 
 丙区读取位 `~\.agents_four_skills\personal-dev-workflow` 被**一个根**承载；**四个 agent 的读法定义在 §1，此处只记配置位置**：
