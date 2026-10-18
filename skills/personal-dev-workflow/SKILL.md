@@ -72,3 +72,10 @@ description: "Run cost-aware multi-agent project work with OpenCode/DeepSeek, Co
 宿主子 Agent 可以承接独立职责，但必须由唯一协调者管理范围、证据与预算。当前 CLI 运行器仍禁止角色自行嵌套调度；需要宿主原生团队时以辅助模式另行执行同一契约，不与 CLI 运行器争抢任务或伪造其验收状态。
 
 新会话先用 `status` 定位用户正在继续的任务，再用 `handoff <id>` 核对新鲜度、活动进程和剩余预算。从契约、HANDOFF.md 及其引用的原始证据恢复；有多个候选且无法判断时才询问。源码或契约漂移不能沿用旧通过结论，running 任务不能重复启动。交接在阶段边界落盘，不依赖上下文达到固定百分比。没有宿主读数时不猜测百分比；归档旧对话不由本程序自动执行。
+
+
+## 分发与更新（本仓库附加）
+
+- 唯一更新源：GitHub `https://github.com/satan9394/personal-dev-workflow`，分支 `main`（滚动，无 tag / 无 Release），技能位于仓库 `skills/personal-dev-workflow/`。
+- 本机读取位（镜像）：`<home>\.agents_four_skills\personal-dev-workflow`；项目内副本：`.agents/skills/personal-dev-workflow/`。
+- 用户说「更」/「更新 skill」时：优先从 GitHub 取（详见 `references/runtime.md#分发与更新本仓库附加`），**不要**默认只信本机目录。

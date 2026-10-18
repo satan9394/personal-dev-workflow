@@ -136,3 +136,16 @@ node --test <本Skill>/scripts/drivers.test.mjs
 ```
 
 它创建并保留隔离用例、启动真实本地子进程，用 fixture CLI 测试完成条件、检查失败、定向修复、越界、只读违规、输出解析、漂移、预算、进程超时、并发锁、取消与恢复，并覆盖被父仓库忽略的夹具根、项目 Git ignore 与 info/exclude 隐藏的显式范围。驱动测试另验证 Windows Codex npm 布局、中文路径与参数边界。**这些套件验证编排/发现逻辑，真实 OC/Codex/AGY 的登录和路由需要另外的 live task。** 夹具保存在项目 `.pdw/test-runs/`，没有自动清理。
+
+
+## 分发与更新（本仓库附加）
+
+本 Skill 的更新以 GitHub 为准，不以任何本机目录为准。
+
+- 源：`https://github.com/satan9394/personal-dev-workflow`，分支 `main`（滚动），路径 `skills/personal-dev-workflow/`（8 个文件：`SKILL.md`、`agents/openai.yaml`、`assets/audit-task.json`、`references/runtime.md`、`scripts/{drivers,drivers.test,pdw,pdw.test}.mjs`）。
+- 步骤：
+  1. `git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow <临时目录>`；网络不可用时才退回本机镜像 `<home>\.agents_four_skills\personal-dev-workflow`，并在回复里说明用了兜底。
+  2. 用远端 8 个文件与当前副本逐字节比对（sha256，缺文件算差异）。
+  3. 无差异 → 只回「已是最新（<版本>）」。
+  4. 有差异 → 备份当前副本到 `.pdw/skill-upgrade-<YYYYMMDD>/` → 用远端 8 文件整份替换（保留四层目录）→ **不要动 `.pdw/config.json`** → 跑 `node .agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` → 报告版本串与 doctor 结果。
+- 不要改本机镜像当"真身"；镜像只是 GitHub 的下游副本。
