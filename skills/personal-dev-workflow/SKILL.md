@@ -82,5 +82,5 @@ metadata:
 ## 分发与更新（本仓库附加）
 
 - 出处、版本与分支以本文件 frontmatter 的 `metadata` 为准（repository / version / skill-path / branch）。唯一更新源是该 repository 的 `main` 分支，技能位于 `skills/personal-dev-workflow/`。
-- 本机读取位（镜像）：`<home>\.agents_four_skills\personal-dev-workflow`；项目内副本：`.agents/skills/personal-dev-workflow/`。
+- 本技能不绑定任何本机路径：项目内副本位于 `.agents/skills/personal-dev-workflow/`，各 agent 从自己的技能根读取；更新一律来自上面的 repository。
 - 用户说「更」/「更新 skill」时：优先从 GitHub 取（详见 `references/runtime.md#分发与更新本仓库附加`），**不要**默认只信本机目录。

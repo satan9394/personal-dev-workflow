@@ -1,21 +1,21 @@
 # Personal Dev Workflow distribution
 
-This repository maintains and distributes the iterated Skill. Workflow research and original evidence live in `<research-repo>`.
+This repository maintains and distributes the iterated Skill. Workflow research and original evidence live in a separate research repository, referenced here as `<research-repo>`.
 
-## 文档地图（顶层 8 份，各读一份责任）
+> 本机交接与机器清单不在公开仓库：见本地治理目录的 `pdw-HANDOFF-20261017-opencode.md`。
+
+## 文档地图（顶层 6 份，各读一份责任）
 
 - `AGENTS.md` — 本仓库治理规则与产物范围 — 每次开工先读
 - `README.md` — 对外介绍：它是什么、怎么装与驱动、边界与验证、仓库布局 — 改用法或对外说明时读
-- `DEPLOYMENT.md` — 落位与分发操作手册（四层职责、版本口径、更新流程、机器现状、不变式） — 改使用位、升项目副本前必读
+- `DEPLOYMENT.md` — 落位与分发操作手册（四层职责、版本口径、更新流程、使用位与本机信息、不变式） — 改使用位、升项目副本前必读
 - `RELEASING.md` — 发布口径（`main` 滚动，不发版本）与推送步骤 — 提交 / 推送前读
 - `CHANGELOG.md` — 逐条变更记录（`[main]` 滚动条目 + 历史版本；历史条目不改） — 想查"改了什么、为什么"时读
-- `HANDOFF-20261017-opencode.md` — 当前状态快照 + 待办 + 踩坑 — 每个新会话读完本文件后接着读
-- `HANDOFF-20261016-opencode.md` — 上一份交接（仅存档，已被 10-17 那份取代） — 只在追溯 10-16 那批改动时读
 - `SECURITY.md` — 漏洞上报与披露政策 — 上报 / 披露安全问题时读
 
-> **交接**：最新一份是 **`HANDOFF-20261017-opencode.md`**（迁移/清场/落位后的状态快照、待办与踩坑）；上一份 `HANDOFF-20261016-opencode.md` 保留可查（含未提交改动的归类建议、`.pdw` 悬空软链噪音、机器侧使用位现状）。插件与派生副本已移除（`plugin/`、`dist/`、`sync-copies.mjs`、npm 发布工作流），legacy 已整批归档到 `archive/`；**开工先读最新那份。**
+> **交接**：本机状态快照、待办与踩坑不在公开仓库，见本地治理目录的 `pdw-HANDOFF-20261017-opencode.md`（上一份 `pdw-HANDOFF-20261016-opencode.md` 留档可查）。插件与派生副本已移除（`plugin/`、`dist/`、`sync-copies.mjs`、npm 发布工作流），legacy 已整批归档到 `archive/`。
 
-- 落位与分发（把 Skill 刷到**丙区** `~\.agents_four_skills\`、升级项目里的副本、与研究发布包的适配口径与验收清单）：按 **`DEPLOYMENT.md`** 执行，不要每次重新讨论口径。方针依据：`<claude-code-root>\Notes\DECISIONS.md` 的 D-0081（仓库=开发位、库=挂载开关、全局=受管链接、项目=按需复制）、D-0085（丙区取代库 + 1.3.3 适配）。**版本口径 = main 滚动，不发版本**（见 `RELEASING.md`）。
+- 落位与分发（把 Skill 刷到**丙区** `~\.agents_four_skills\`、升级项目里的副本、与研究发布包的适配口径与验收清单）：按 **`DEPLOYMENT.md`** 执行，不要每次重新讨论口径。方针依据：本地治理笔记的 `Notes/DECISIONS.md` 的 D-0081（仓库=开发位、库=挂载开关、全局=受管链接、项目=按需复制）、D-0085（丙区取代库 + 1.3.3 适配）。**版本口径 = main 滚动，不发版本**（见 `RELEASING.md`）。
 
 - **分发链**（权威内容只有 `skills/personal-dev-workflow/` 一份）：本仓库 → GitHub `satan9394/personal-dev-workflow` 的 `main`（滚动）→ 丙区读取位 `~\.agents_four_skills\personal-dev-workflow`（oc 由 `opencode.json#skills`、dsh 由 `skill-filesystem.customSkillDirs` 原生注册；cc/agy 按需直读；Codex 不读 skill；**不用 junction**）→ 各长期项目 `.agents/skills/personal-dev-workflow/`。步骤见 `DEPLOYMENT.md`。
 

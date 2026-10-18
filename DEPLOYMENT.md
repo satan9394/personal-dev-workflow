@@ -23,7 +23,7 @@
   `skills/personal-dev-workflow/`，丙区只是它的本地镜像，见 §5、§7），而且是**一个根承载四个 agent**：
   OpenCode 与 DSH 各自在配置里**原生注册**这一个目录（oc: `opencode.json#skills`；dsh: web profile 的
   `skill-filesystem.customSkillDirs`，独立提供方 `personal-filesystem`）；**cc 与 agy 没有该配置，按需直接读
-  `<home>\.agents_four_skills\<名>\SKILL.md`**。
+  `~/.agents_four_skills/<名>/SKILL.md`**。
 - **不再用 junction 挂载**：四个 agent 技能根（`~\.claude\skills`、`~\.dsh\skills`、`~\.gemini\antigravity\skills`、
   `~\.codex\skills`）里的丙区 junction 已于 2026-10-17 全部清掉（16 条，进回收站）；不要再建。
 - **Codex 不读 skill，不在四者之内**：`~\.codex\skills` 与本方案无关。
@@ -31,7 +31,7 @@
   skills-manager 库移除（`skills show personal-dev-workflow` 返回空），因此 `skills update` / `skills deploy` /
   `skills set-source` **对本技能不再适用**。
 - 丙区新增或重命名技能，只需同步名册 `stars-scan\curated\personal-skills.json`（**不再需要建 junction**）；
-  边界全文见 `<claude-code-root>\skills-governance\SKILL-BOUNDARIES-AGENTS-FOUR-SKILLS.md`。
+  边界全文见本地治理目录的 `SKILL-BOUNDARIES-AGENTS-FOUR-SKILLS.md`。
 - 改内容只改仓库那份；丙区镜像由"push 后再取远端"刷新（§5），项目副本由"复制"刷新，**不手工编辑丙区**。
 
 ## 2. 版本口径
@@ -43,13 +43,13 @@
 
 ## 3. 与研究发布包的关系（**以研究包为准**，2026-10-17 起）
 
-研究项目 `<research-repo>` 是上游，交付包在 `artifacts/releases/<version>/`
+研究项目（下文记作 `<research-repo>`）是上游，交付包在 `artifacts/releases/<version>/`
 （ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**。
 
 - **规则：以研究包为准做适配**（2026-10-17 用户口径，取代先前"只作对照基准、不覆盖"）。
   适配 = 包内容原样落地 + **只保留仓库布局所必需的改动**：
   1. `scripts/drivers.test.mjs`、`scripts/pdw.test.mjs` 各一处路径探测（仓库布局 3 层 / 安装布局 4 层），
-     否则测试会把证据写进 `<projects-root>\.pdw`；
+     否则测试会把证据写进 `<projects-root>/.pdw`；
   2. 行尾统一 LF（包内 `scripts/pdw.mjs` 是 CRLF，仓库 `.gitattributes` 规定 `*.mjs eol=lf`）。
 - **随之退场的下游改动**（本仓库 2026-10-16/17 原有、研究包未携带）：`drivers.mjs` 的角色 JSON 恢复
   （`jsonValues` / 围栏 / 平衡花括号）、`drivers.test.mjs` 的对应回归用例、`references/runtime.md` 的最终响应口径段落。
@@ -80,7 +80,7 @@ node archive/tools/run-tests.mjs
 # 1) 解包上游（以 1.3.3-local 为例）
 $tmp = "$env:TEMP\opencode\p133"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-tar -xf "<research-repo>\artifacts\releases\1.3.3-local\personal-dev-workflow-1.3.3-local.zip" -C $tmp
+tar -xf "<research-repo>/artifacts/releases/1.3.3-local/personal-dev-workflow-1.3.3-local.zip" -C $tmp
 # 2) 备份现有仓库副本（可回溯，不放回收站就算备份）
 $bak = ".pdw\skill-adaptation-<日期>\pre-package-baseline"
 New-Item -ItemType Directory -Force -Path $bak | Out-Null; Copy-Item 'skills\personal-dev-workflow\*' $bak -Recurse -Force
@@ -110,8 +110,8 @@ Copy-Item 'skills\personal-dev-workflow\*' "$env:USERPROFILE\.agents_four_skills
 
 | agent | 读法 | 配置位置 |
 | --- | --- | --- |
-| OpenCode | 原生注册这个目录 | `~\.config\opencode\opencode.json` → `"skills": ["C:\\Users\\<user>\\.agents_four_skills"]` |
-| DeepSeek Harness | 原生注册这个目录 | web profile `cordis.patch.yml` → `skill-filesystem.customSkillDirs: ['<home>\.agents_four_skills']`（提供方 `personal-filesystem`） |
+| OpenCode | 原生注册这个目录 | `~/.config/opencode/opencode.json` → `"skills": ["~/.agents_four_skills"]` |
+| DeepSeek Harness | 原生注册这个目录 | web profile `cordis.patch.yml` → `skill-filesystem.customSkillDirs: ['~/.agents_four_skills']`（提供方 `personal-filesystem`） |
 | Claude Code | **按需直接读** `<名>\SKILL.md` | 无该配置 |
 | Antigravity | **按需直接读** `<名>\SKILL.md` | 无该配置 |
 
@@ -164,16 +164,17 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 
 ### 步骤 5 · 记录
 
-- 跨会话日记：`<claude-code-root>\Notes\2026\10\NOTES_20261017.md`（追加，不新建文件）。
-- 会约束未来的决定：`<claude-code-root>\Notes\DECISIONS.md` 追加一条（取当前最大号 +1）。
+- 跨会话日记：本地治理笔记的当天日记文件（追加，不新建文件）。
+- 会约束未来的决定：本地治理笔记的 `Notes/DECISIONS.md` 追加一条（取当前最大号 +1）。
 - 机器清单有变动时同步本文件第 5 节。
 
-## 5. 机器现状（2026-10-17 晚实测）
+## 5. 使用位与本机信息（2026-10-17 晚）
+
+**本机曾配置的读取位与项目副本清单属本机信息，见本地治理笔记**；本节只保留中性口径与可迁移的流程教训。
 
 **使用位 = 丙区，且只有这一个根**：读取位 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测），**它是 GitHub `main` 的本地镜像，不是独立真身**（见下）。
 项目级同步源与此不同：见 §7（GitHub main）；**四个 agent 的读法定义见 §1，此处不重复**。
-**不再有 junction**：四个 agent 技能根里指向丙区的 16 条链接已于 2026-10-17 全部清掉
-（进回收站），四个根下的丙区条目数现为 **0**。仓库与丙区两份 **8/8 逐字节一致、行尾全 LF**。
+**不再有 junction**：四个 agent 技能根里指向丙区的链接已于 2026-10-17 全部清掉（进回收站），四个根下的丙区条目数现为 **0**。仓库与丙区两份 **8/8 逐字节一致、行尾全 LF**。
 本技能已从 skills-manager 库移除；dsh 原来的 2.0.0 真副本备份在本仓库
 `.pdw/migrations/dsh-skill-copy-2.0.0-20261017/`（已进回收站）。
 
@@ -206,24 +207,10 @@ git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-work
 `.git/info/exclude` 里），所以没有制造 drift；但**在有任务运行时替换技能副本仍属边界操作**，以后先查 `run.lock`。
 另外丙区里 `tmux-persist`、`utilities`、`agent-risk-guard` 与本技能无关，别顺手改。
 
-项目级真副本（2026-10-17 早些时候已从 1.3.1-local 升级到「上一版 8 文件」，逐文件与当时的库一致，各自 `.pdw/config.json` 未被改动）：
+项目级真副本（2026-10-17 已从 1.3.1-local 升级到当轮的 8 文件版本，逐文件与当时的源一致，各项目 `.pdw/config.json` 未被改动）。各项目副本的绝对路径、备份目录与升级前版本串属本机信息，见本地治理笔记。
 
-| 项目 | 路径 | 备份 |
-| --- | --- | --- |
-| finquant-hub | `<projects-root>\finquant-hub\.agents\skills\personal-dev-workflow` | `<项目>\.pdw\skill-upgrade-20261017\personal-dev-workflow-1.3.1-local\` |
-| Vessel_Harness | `<projects-root>\Vessel_Harness\.agents\skills\personal-dev-workflow` | 同上（各自项目内） |
-| model-infra-kit | `<dsh-root>\workspace\2026_09_08\model-infra-kit\.agents\skills\personal-dev-workflow` | 同上（各自项目内） |
-
-finquant-hub 另有一项收尾（2026-10-17 晚）：它的 `.agents/` 索引里长期残留 27 条 v1.0.0 旧路径，
-已与工作树对齐并提交 `6c3ded7`（34 文件 +1468/−1093，**只含 `.agents/`**），**未推送**（本地 ahead 1，
-远端 `refs/heads/main` 仍在 `e37ca46`）。该项目 `.pdw/tasks` 为 0，所以这次 HEAD 变化不会打到在跑任务。
-
-升级后 `doctor` 结果：model-infra-kit `exit 0`（5 角色 ready）；finquant-hub 与 Vessel_Harness 初次 `exit 1`，
-原因是这两个项目 `.pdw/config.json` 里 `implement` 的 codex 路径指向已消失的版本化 bin 目录
-（`...\OpenAI\Codex\bin\e78bad9887fa50cf\codex.exe`）。这是升级前既有的项目配置漂移（用 1.3.1 旧副本跑同一命令
-同样 exit 1），**不是**替换引入的。2026-10-17 经用户授权已修复：先备份 `config.json` 到各自的
-`.pdw/skill-upgrade-20261017/`，再把 `implement.executable` 改指实测可用的 `...\bin\896a0166b774037a\codex.exe`
-（同级 `ce4759538b7f2f1a\` 里只有 `rg.exe`，不是 codex），改后两份 `doctor` 均 `exit 0`、5 角色 ready。
+升级后 `doctor` 结果：四个项目副本均 `exit 0`、5 角色 ready。其中两个项目初次 `exit 1`，原因是它们 `.pdw/config.json` 里 `implement` 的 codex 可执行文件指向已消失的版本化 bin 目录——这是升级前既有的项目配置漂移（用旧副本跑同一命令同样 `exit 1`），**不是**替换引入的；经用户授权先备份 `config.json`，再改指实测可用的版本目录，`doctor` 恢复 `exit 0`。
+另有一个项目把长期残留的旧代际 `.agents/` 索引与工作树对齐并提交（只含 `.agents/`，**未推送**）；该项目 `.pdw/tasks` 为 0，HEAD 变化不会打到在跑任务。
 
 各项目文档里钉扎的版本串同轮按"改现行描述、历史不动"更新：finquant-hub 的 `AGENTS.md` / `CLAUDE.md` /
 `.gitignore` 注释、Vessel_Harness 的 `pdw-entry` 块、model-infra-kit 的 `AGENTS.md` 与 `.agents/skills/README.md`
@@ -231,7 +218,7 @@ finquant-hub 另有一项收尾（2026-10-17 晚）：它的 `.agents/` 索引�
 `1.3.3-local`——本轮只做文档归一化，未逐项复核各项目文档）；历史/证据类文件（`HANDOFF.md`、`CHANGELOG.md`、`evidence/**`、`docs/decisions.md`、
 model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保持原样。
 
-另有一处是**首次装入**而非升级（2026-10-17）：`<claude-code-root>\projects\remote-job-aggregator`
+另有一处是**首次装入**而非升级（2026-10-17）：`<projects-root>/remote-job-aggregator`
 原本没有任何内嵌副本，也没有 `AGENTS.md` / `pdw.ps1`（它的 12 个 PDW 历史任务是靠外部路径跑的）。
 按首次装入路径执行 `node <源>/scripts/pdw.mjs install --project <项目>`（源用本仓库或丙区镜像，见 §7），得到：8 文件副本、项目根 `pdw.ps1`、
 `AGENTS.md`（install 写的 `<!-- pdw-entry -->` 块 + 事后补的「PDW 入口与技能副本」「任务板一览」两节，现 2005 B / 25 行）；
@@ -259,10 +246,10 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 刻意不动：
 
-- `<research-repo>\.agents\skills\personal-dev-workflow`——研究项目的 1.3.2-local 冻结快照。
-- `<dsh-root>\workspace\2026_09_08\model-infra-kit-internal\.agents\skills\personal-dev-workflow`——v1.0.0 老代际（27 文件结构，非 git，2026-10-06 后未动），留作老代际存档。
-- `E:\AI_ALL\Agent_备份\`——备份仓（22 直接子项 / 约 9.5 万文件 / 约 48.9 GB，含 10 个日期快照、`git-config` 五份 agent 配置的 git 仓库、zips），由它自己的 Backup/GitCommit/Pack 脚本维护。
-- `<dsh-root>\_recovery\` 里的恢复备份，以及各处 `.pdw/`、`artifacts/`、`evidence/` 下的历史副本（测试证据，非使用位）。
+- 研究项目里的那份冻结快照副本（研究侧快照，非使用位）。
+- 某一内嵌项目的旧代际副本（v1.0.0 结构，27 文件，非 git，留作老代际存档）。
+- 本机的备份仓与恢复备份目录（含日期快照、agent 配置的 git 仓库、压缩包，由各自的 Backup/GitCommit/Pack 脚本维护）。
+- 各项目 `.pdw/`、`artifacts/`、`evidence/` 下的历史副本（测试证据，非使用位）。
 
 ## 6. 不变式与禁区
 

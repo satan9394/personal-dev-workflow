@@ -143,7 +143,7 @@ node --test <本Skill>/scripts/drivers.test.mjs
 
 - 源：`https://github.com/satan9394/personal-dev-workflow`，分支 `main`（滚动），路径 `skills/personal-dev-workflow/`（8 个文件：`SKILL.md`、`agents/openai.yaml`、`assets/audit-task.json`、`references/runtime.md`、`scripts/{drivers,drivers.test,pdw,pdw.test}.mjs`）。
 - 步骤：
-  1. `git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow <临时目录>`；网络不可用时才退回本机镜像 `<home>\.agents_four_skills\personal-dev-workflow`，并在回复里说明用了兜底。
+  1. `git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow <临时目录>`；网络不可用时退回本机已安装的那份副本（按当前 agent 的技能根自行解析），并在回复里说明用了兜底。
   2. 用远端 8 个文件与当前副本逐字节比对（sha256，缺文件算差异）。
   3. 无差异 → 只回「已是最新（<版本>）」。
   4. 有差异 → 备份当前副本到 `.pdw/skill-upgrade-<YYYYMMDD>/` → 用远端 8 文件整份替换（保留四层目录）→ **不要动 `.pdw/config.json`** → 跑 `node .agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` → 报告版本串与 doctor 结果。
