@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /** Validate the skill-creator layout and the declared source version.
  * The distribution follows SemVer in package.json; pdwSkillVersion names
- * the imported research runtime. Skill frontmatter contains name/description only.
+ * the imported research runtime. Skill frontmatter carries the spec fields
+ * (name, description, license, compatibility, metadata, allowed-tools) and nothing else.
  * This repository ships the Skill only — no plugin bundle and no generated copies.
  * This local check supplements the official Agent Skills validator in CI.
  */
@@ -218,9 +219,17 @@ function checkSkill(skill) {
   return version ?? null;
 }
 
-/** Apply the current skill-creator frontmatter convention. */
+/**
+ * The Agent Skills specification allows exactly these top-level frontmatter
+ * fields. Anything else (for example `argument-hint`) is rejected: it makes a
+ * claude.ai upload fail. `metadata` is the sanctioned place for a skill's own
+ * origin/version, so its nested keys are not inspected here.
+ */
+const SPEC_FRONTMATTER_FIELDS = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];
+
+/** Apply the Agent Skills frontmatter field convention. */
 function checkFrontmatterFields(skill, frontmatter) {
-  const allowed = new Set(['name', 'description']);
+  const allowed = new Set(SPEC_FRONTMATTER_FIELDS);
   const present = [...new Set(frontmatter.map(parseEntry).filter(Boolean).filter((e) => e.topLevel).map((e) => e.key))];
   const unexpected = present.filter((key) => !allowed.has(key)).sort();
   if (unexpected.length > 0) {

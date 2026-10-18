@@ -28,13 +28,21 @@ test('valid creator layout with fragment references and separate distribution ve
   const result = fixture('valid');
   assert.equal(result.status, 0, result.stderr);
 });
-test('frontmatter metadata version is rejected under current creator convention', () => {
-  const result = fixture('metadata', ({ write, root }) => {
-    const body = fs.readFileSync(path.join(root, 'skills/personal-dev-workflow/SKILL.md'), 'utf8').replace('description:', 'metadata:\n  version: "2.0.1"\ndescription:');
-    write('skills/personal-dev-workflow/SKILL.md', body);
-  });
+test('the spec frontmatter fields, including metadata, are accepted', () => {
+  const result = fixture('spec-fields', ({ write }) => write(
+    'skills/personal-dev-workflow/SKILL.md',
+    '---\nname: personal-dev-workflow\ndescription: "Run project workflows"\nlicense: MIT\ncompatibility: "node >= 20"\nmetadata:\n  version: "2.0.1"\n  repository: "https://github.com/satan9394/personal-dev-workflow"\nallowed-tools: "Read Grep"\n---\n版本：1.3.2-local；\n[Runtime](references/runtime.md#commands)\n',
+  ));
+  assert.equal(result.status, 0, result.stderr);
+});
+test('a frontmatter field outside the spec is rejected', () => {
+  const result = fixture('outside-spec-field', ({ write }) => write(
+    'skills/personal-dev-workflow/SKILL.md',
+    '---\nname: personal-dev-workflow\ndescription: "Run project workflows"\nargument-hint: "<target>"\n---\n版本：1.3.2-local；\n[Runtime](references/runtime.md#commands)\n',
+  ));
   assert.equal(result.status, 1);
   assert.match(result.stderr, /spec:frontmatter-fields/);
+  assert.match(result.stderr, /argument-hint/);
 });
 test('research version drift is rejected', () => {
   const result = fixture('source-drift', ({ write }) => write('package.json', JSON.stringify({ version: '2.0.1', pdwSkillVersion: '1.3.1-local' })));
