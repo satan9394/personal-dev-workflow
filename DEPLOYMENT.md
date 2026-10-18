@@ -8,7 +8,7 @@
 ## 1. 四层职责（唯一权威只有一处）
 
 ```
-本仓库 skills/personal-dev-workflow/            ← 唯一开发位与权威内容（agent 不直接读它）
+本仓库 skills/personal-dev-workflow/            ← 唯一开发位（技能内容的权威来源是研究包，适配口径见 §3；agent 不直接读它）
         │  push 到 GitHub `main`（无库、无 deploy 命令）；丙区从 main 取远端刷新
         ▼
 ~\.agents_four_skills\personal-dev-workflow     ← 丙区读取位：**唯一使用位**（GitHub `main` 的本地镜像；2026-10-17 起取代 skills-manager 库）
@@ -38,25 +38,34 @@
 
 - 发布号 = `package.json` 的 `version`（现 `2.0.1`，**不再变动**）；研究版 = `pdwSkillVersion`（现 `1.3.3-local`）。
 - **不发版本**：不打 tag、不发 GitHub Release、不推 npm；分发口径 = `main` 滚动（见 `RELEASING.md`）。
-- Skill `SKILL.md` frontmatter **只有 `name` + `description`**（skill-creator 规则），正文写研究版。
+- Skill `SKILL.md` frontmatter = `name` + `description` + 出处 `metadata`（`version` / `repository` / `skill-path` /
+  `branch` / `updated`；`metadata` 是 Agent Skills 规范认可的字段），正文写研究版；`argument-hint` 这类
+  Claude Code 专有字段仍然禁止（会让 claude.ai 上传失败）。
+- **重切同版本号**：上游 1.3.3-local 于 2026-10-17 就地重切、版本串未动，所以"看版本串"不足以判新旧，
+  **比对一律按逐文件 sha256**（丙区与项目副本的刷新流程本来就是散列比对，见 §5、§7）。
 - 校验器口径：源版本比 `pdwSkillVersion`，发布号比 `package.json`。
 
 ## 3. 与研究发布包的关系（**以研究包为准**，2026-10-17 起）
 
 研究项目（下文记作 `<research-repo>`）是上游，交付包在 `artifacts/releases/<version>/`
-（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**。
+（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**
+（2026-10-17 **就地重切**：版本号不变、包字节已变；重切前的旧包 sha256 `25da41f8…` 在本仓库
+`.pdw/upstream-package-prepack/` 留档）。
 
 - **规则：以研究包为准做适配**（2026-10-17 用户口径，取代先前"只作对照基准、不覆盖"）。
   适配 = 包内容原样落地 + **只保留仓库布局所必需的改动**：
   1. `scripts/drivers.test.mjs`、`scripts/pdw.test.mjs` 各一处路径探测（仓库布局 3 层 / 安装布局 4 层），
-     否则测试会把证据写进 `<projects-root>/.pdw`；
-  2. 行尾统一 LF（包内 `scripts/pdw.mjs` 是 CRLF，仓库 `.gitattributes` 规定 `*.mjs eol=lf`）。
-- **随之退场的下游改动**（本仓库 2026-10-16/17 原有、研究包未携带）：`drivers.mjs` 的角色 JSON 恢复
-  （`jsonValues` / 围栏 / 平衡花括号）、`drivers.test.mjs` 的对应回归用例、`references/runtime.md` 的最终响应口径段落。
-  旧 8 文件备份在 `.pdw/skill-adaptation-20261017/pre-package-baseline/`，可回溯。
-- 这类能力若要保留，应在**研究项目**里实现并出新包，再同步过来，而不是在本仓库反向补丁。
+     否则测试会把证据写进 `<projects-root>/.pdw`；这是**唯一**的下游差异（9 个文件里只有这两个各差 1 行）；
+  2. 行尾：上游包自 2026-10-17 重切起已统一 LF，行尾不再是差异项。
+- **新能力一律先在上游实现（出新包或按 §4 步骤 1 重切），再适配过来**——2026-10-17 已按此落地：
+  快照两道防线（工作树必须是项目根、读不出内容即拒绝写空基线）与技能内 `scripts/update.mjs` 都先在研究位实现。
+  这类能力若要保留，**不要**在本仓库反向补丁。
 - 核实时做**文件级比对**：按 `manifest.json` 的 sha256 逐文件比仓库/丙区，再对差异文件做行级 diff。
 - 比对与适配结论写进 `.pdw/`（本地证据，gitignore），不往仓库塞跨仓库脚本。
+- 历史：1.3.3 之前本仓库曾有的下游改动（`drivers.mjs` 的角色 JSON 恢复、其回归用例、`references/runtime.md`
+  的最终响应口径段）已按 2026-10-17 的"以研究包为准"口径退场，旧 8 文件备份在
+  `.pdw/skill-adaptation-20261017/pre-package-baseline/`；本轮重切前的 8 文件备份在
+  `.pdw/skill-adaptation-20261017-recut/pre-package-baseline/`。
 
 ## 4. 标准更新流程
 
@@ -84,25 +93,31 @@ tar -xf "<research-repo>/artifacts/releases/1.3.3-local/personal-dev-workflow-1.
 # 2) 备份现有仓库副本（可回溯，不放回收站就算备份）
 $bak = ".pdw\skill-adaptation-<日期>\pre-package-baseline"
 New-Item -ItemType Directory -Force -Path $bak | Out-Null; Copy-Item 'skills\personal-dev-workflow\*' $bak -Recurse -Force
-# 3) 覆盖；随后只补两处布局探测（pdw.test.mjs / drivers.test.mjs），并把行尾统一成 LF
+# 3) 覆盖；随后只补两处布局探测（pdw.test.mjs / drivers.test.mjs）——行尾已是 LF，不用再转
 Copy-Item "$tmp\personal-dev-workflow\*" 'skills\personal-dev-workflow' -Recurse -Force
-# 4) 抬研究版：package.json 的 pdwSkillVersion + 两处正文串（SKILL.md 正文、scripts/pdw.mjs 的 const version）
+# 4) 只有研究版真的抬高时才动版本串：package.json 的 pdwSkillVersion + 两处正文串
+#    （SKILL.md 正文「版本：」、references/runtime.md 标题、scripts/pdw.mjs 的 const version）
+#    重切同版本号时不改任何版本串
 # 5) 跑步骤 0 的五条校验，再刷新丙区读取位
 Copy-Item 'skills\personal-dev-workflow\*' "$env:USERPROFILE\.agents_four_skills\personal-dev-workflow" -Recurse -Force
 ```
 
-参考值（2026-10-17，`1.3.3-local`；内容变动时同步更新）：
+参考值（2026-10-17 重切后，`1.3.3-local`，sha256 前 10 位；内容变动时同步更新）：
 
 | 文件 | 上游 1.3.3 包 | 本项目 / 丙区 |
 | --- | --- | --- |
-| SKILL.md | `a33440fb…` | 同（未改） |
+| SKILL.md | `9596d455…` | 同（未改） |
 | agents/openai.yaml | `f8cfe876…` | 同（未改） |
 | assets/audit-task.json | `fe2d91b6…` | 同（未改） |
-| references/runtime.md | `744dbe7f…` | 同（未改） |
-| scripts/drivers.mjs | `4821702b…` | 同（仅行尾 LF） |
-| scripts/pdw.mjs | `d52f2c45…` | 同（仅行尾 CRLF→LF） |
+| references/runtime.md | `62927cf8…` | 同（未改） |
+| scripts/drivers.mjs | `4821702b…` | 同（未改） |
+| scripts/pdw.mjs | `42e393e1…` | 同（未改） |
+| scripts/update.mjs | `c410ea69…` | 同（未改） |
 | scripts/drivers.test.mjs | `dc6ecbc0…` | 改一处（仓库布局探测） |
 | scripts/pdw.test.mjs | `6e5eccfe…` | 改一处（仓库布局探测） |
+
+**期望的比对结论**：9 个文件里只有 `scripts/drivers.test.mjs`、`scripts/pdw.test.mjs` 各差 1 行（布局探测），
+其余逐字节相同。
 
 ### 步骤 2 · 四个 agent 的使用位（丙区原生注册，**不用 junction**）
 
@@ -139,7 +154,7 @@ node <skill>/scripts/pdw.mjs install --project <项目绝对路径>
 1. 备份旧副本（进 `.pdw/skill-upgrade-<日期>/` 或项目自己的证据位，不放回收站就算备份）；
 2. 对比：确认旧副本是否有项目本地改动（与原发布包逐文件散列比），有则单独保存差异；
 3. 移走旧目录（**回收站**，不彻底删除）；
-4. 装入新版：从**源**（GitHub `main` 子路径，或本机丙区镜像，见 §7）逐文件复制全部 8 个文件（保留 `agents/`、`assets/`、`references/`、`scripts/` 四层）；
+4. 装入新版：从**源**（GitHub `main` 子路径，或本机丙区镜像，见 §7）逐文件复制全部 9 个文件（保留 `agents/`、`assets/`、`references/`、`scripts/` 四层）；**或**直接跑技能自带的 `node .agents/skills/personal-dev-workflow/scripts/update.mjs --project <项目>`（它自带备份与原子替换，见 §7）；
 5. **保留项目自己的 `.pdw/config.json`**——里面是该项目的角色/模型/可执行文件路径，属项目级设置，
    任何情况下不得用默认值覆盖；
 6. 跑 `node <skill>/scripts/pdw.mjs doctor --project <项目>` 复核，证据留在该项目的 `.pdw/`；
@@ -156,8 +171,8 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 # 3) 仓库与丙区逐文件散列一致
 ```
 
-- 逐文件散列：仓库 `skills/personal-dev-workflow/` 与丙区读取位读到的 8 个文件应逐字节一致（行尾均为 LF）。
-- 项目副本：8 文件与丙区一致 + 该项目 `.pdw/config.json` 前后哈希不变 + doctor 通过。
+- 逐文件散列：仓库 `skills/personal-dev-workflow/` 与丙区读取位读到的 9 个文件应逐字节一致（行尾均为 LF）。
+- 项目副本：9 文件与丙区一致 + 该项目 `.pdw/config.json` 前后哈希不变 + doctor 通过。
 - **能证明的边界**：文件层与配置层可证；客户端里"skill 究竟有没有被列出/加载"要各自打开一次才算实测——
   OpenCode 可用 `opencode api get /api/skill` 复算，DSH 需在其会话里确认。2026-10-17 用户决定本轮不做客户端实测，
   因此 oc/dsh 两处仅"配置层已验证"，客户端层是**已知未验项**（不是已验证）；cc/agy 按设计就是按需直读。
@@ -178,7 +193,7 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 本技能已从 skills-manager 库移除；dsh 原来的 2.0.0 真副本备份在本仓库
 `.pdw/migrations/dsh-skill-copy-2.0.0-20261017/`（已进回收站）。
 
-**丙区定位 = GitHub `main` 的本地镜像/读取位**（2026-10-17 定）：丙区那 8 个文件的权威来源是
+**丙区定位 = GitHub `main` 的本地镜像/读取位**（2026-10-17 定）：丙区那 9 个文件的权威来源是
 `https://github.com/satan9394/personal-dev-workflow` 的 `main` 分支子路径 `skills/personal-dev-workflow/`。
 **不要把丙区当作独立真身去改**——要改技能本体只改本仓库的 `skills/personal-dev-workflow/`（第 6 节第 9 条），
 丙区随"push 后再取远端"被动跟进。每次分发仓库 `push` 之后的刷新步骤（只读比对 → 有差异才覆盖）：
@@ -188,16 +203,20 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 $tmp = "$env:TEMP\pdw-gh-mirror"
 # 目录已存在时先进回收站（删除铁律），或换一个新目录名
 git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow $tmp
-# 2) 逐文件比对 $tmp\skills\personal-dev-workflow\ 的 8 个文件与丙区（sha256 + 行尾 LF）
+# 2) 逐文件比对 $tmp\skills\personal-dev-workflow\ 的 9 个文件与丙区（sha256 + 行尾 LF）
 #    SKILL.md、agents/openai.yaml、assets/audit-task.json、references/runtime.md、
-#    scripts/{drivers.mjs,drivers.test.mjs,pdw.mjs,pdw.test.mjs}
+#    scripts/{drivers.mjs,drivers.test.mjs,pdw.mjs,pdw.test.mjs,update.mjs}
 # 3) 无差异 → 什么都不改（不备份也不覆盖）；有差异才覆盖：
-#    先把丙区现有 8 文件**复制**备份到本仓库 .pdw\skill-mirror-backup-<YYYYMMDD>\
+#    先把丙区现有 9 文件**复制**备份到本仓库 .pdw\skill-mirror-backup-<YYYYMMDD>\
 #    （复制、不移动、不删除），再用远端内容整份覆盖丙区，行尾统一 LF，并保留四层目录结构
 ```
 
 比对同时要看本仓库本地那份：基线是**三方一致**（GitHub `main` / 丙区 / 本仓库 `skills/personal-dev-workflow/`），
-2026-10-17 实测 `8/8` 逐字节一致、行尾全 LF（SHA 前 10 位见步骤 1 的表）。
+2026-10-17 实测 `8/8` 逐字节一致、行尾全 LF；同日重切后为 **`9/9`**（SHA 前 10 位见步骤 1 的表）。
+
+**本轮（2026-10-17 重切后）的刷新**：丙区与四处项目副本再刷到重切后的 **9 文件**版本（`1.3.3-local`，版本串未动，
+按逐文件 sha256 判定）：旧副本备份在各项目 `.pdw/skill-upgrade-20261017-recut/`，四处 `doctor` 均 `exit 0`；
+各自的 `AGENTS.md` 里 `<!-- pdw-skill-sync -->` 块的"8 文件"字样同步改为 9。下面那轮 8 文件的记录保留为历史。
 
 **项目级传播（2026-10-17 晚已完成）**：四处项目副本已刷到 `1.3.3-local`（方式见步骤 3；旧副本各自备份在
 `.pdw/skill-upgrade-20261017/personal-dev-workflow-pre-1.3.3/`），四处 `doctor` 均 `exit 0`、5 角色 ready：
@@ -258,7 +277,8 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 3. **不覆盖项目级 `.pdw/config.json`**（角色、模型、exe 路径是项目自己的）。
 4. 不动研究冻结快照、备份仓、老代际存档（见第 5 节）。
 5. 不用 legacy 的 `skills sync`（按 active preset 批量刷所有 agent，会顺手动别的部署）。
-6. 禁止 `npx skills add`（本机使用位是丙区读取位，不走包安装器）；本技能的写入链只有两条：**仓库 →（push 到 GitHub `main` →）丙区镜像**与**仓库 → 项目副本（复制）**。
+6. 禁止 `npx skills add`（本机使用位是丙区读取位，不走包安装器）；本技能的写入链有三条：
+   **仓库 →（push 到 GitHub `main` →）丙区镜像**、**仓库 → 项目副本（复制）**，以及**项目副本 ← GitHub `main`（技能自带 `scripts/update.mjs` 自更新）**。
 7. 丙区读取位与项目副本出现 `.bak` / 临时文件时先清掉再复制（否则会被一起带进去）。
 8. **丙区是共用位**：改本技能时只动 `~\.agents_four_skills\personal-dev-workflow`，不要碰同目录的 `tmux-persist` / `utilities` / `agent-risk-guard`；**不要建 junction**（oc/dsh 原生注册、cc/agy 按需直读），新增或改名技能只同步名册 `stars-scan\curated\personal-skills.json`。
 9. 只在 `skills/personal-dev-workflow/` 里改 Skill 本体；不放插件、不生成派生副本（`AGENTS.md` 的「产物范围」）。
@@ -267,21 +287,22 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 每个长期项目里那份副本的固定形态：
 
-- 位置：`<项目>/.agents/skills/personal-dev-workflow/`，内容 = 源（GitHub `main`）的 8 文件，**逐字节一致、行尾 LF**；
+- 位置：`<项目>/.agents/skills/personal-dev-workflow/`，内容 = 源（GitHub `main`）的 9 文件，**逐字节一致、行尾 LF**；
 - 项目自己的 `.pdw/config.json` **保持不动**（角色/模型/exe 路径属项目）；
 - 项目 `AGENTS.md` 里有 **`<!-- pdw-skill-sync -->` 块**，写明唯一技能源与"更"的执行流程。
 
-**唯一技能源**：GitHub `satan9394/personal-dev-workflow` 的 `main`（子路径 `skills/personal-dev-workflow/`）；本机丙区 `~\.agents_four_skills\personal-dev-workflow` 只是**离线镜像/兜底**，版本串须与远端一致（丙区镜像的刷新步骤见 §5，不重复）。
+**唯一技能源**：GitHub `satan9394/personal-dev-workflow` 的 `main`（子路径 `skills/personal-dev-workflow/`）；本机丙区 `~\.agents_four_skills\personal-dev-workflow` 只是**离线镜像/兜底**，散列须与远端一致（版本串已不足以判新旧，见 §2；丙区镜像的刷新步骤见 §5，不重复）。
 
 **用户说「更」/「更新 skill」时**（已逐字写进各项目 `AGENTS.md`）：
 
-1. 取远端到临时目录：`git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow <临时目录>`，
-   再逐文件比 `sha256(远端 8 文件)` 与 `sha256(本地副本)`（8 个；缺文件也算差异）；
-   网络不可用才退回本地镜像，并在报告里说明；
-2. 无差异 → 只回一句「已是最新（<版本>）」，不改任何文件；
-3. 有差异 → 备份本地副本到 `.pdw/skill-upgrade-<YYYYMMDD>/` → 用源 8 文件整份替换
-   （保留 `agents/ assets/ references/ scripts/` 四层）→ **不动 `.pdw/config.json`** →
-   跑 `node .agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` → 报告版本串与 doctor 结果。
+1. **首选一条命令**：`node .agents/skills/personal-dev-workflow/scripts/update.mjs --project <项目根>`
+   （`--dry-run` 只看差异）。它自己完成"取远端 → 逐字节比对 9 文件 → 有差异才备份到
+   `.pdw/skill-upgrade-<YYYYMMDD>/personal-dev-workflow-pre-<版本>/` → 原子替换 → 跑 `doctor`"，
+   幂等、不动 `.pdw/config.json`、不删除文件、不 commit/push；无差异只回「已是最新（<版本>）」。
+2. **手工兜底**（脚本不可用或需要人工判断时）：`git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow <临时目录>`，
+   逐文件比 `sha256(远端 9 文件)` 与 `sha256(本地副本)`（缺文件也算差异）；网络不可用才退回本地镜像，并在报告里说明；
+   无差异 → 只回一句「已是最新（<版本>）」；有差异 → 备份 → 用源 9 文件整份替换（保留 `agents/ assets/ references/ scripts/` 四层）
+   → **不动 `.pdw/config.json`** → 跑 `node .agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` → 报告散列与 doctor 结果。
 
 已按此固定配置的项目（2026-10-17，均 `1.3.3-local`、`doctor exit 0`）：
 `finquant-hub`、`Vessel_Harness`、`model-infra-kit`、`remote-job-aggregator`。

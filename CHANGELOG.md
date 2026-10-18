@@ -3,6 +3,38 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-17 — Re-cut the `1.3.3-local` package: snapshot guard rails, a bundled updater, origin metadata
+
+### Skill content (same research version string, new bytes)
+- **The upstream package `1.3.3-local` was re-cut in place** on the user's decision and the Skill was re-imported from
+  it. The version string did **not** change, so compare copies by **per-file sha256**, never by the version string.
+  The superseded archive (`sha256 25da41f8…`) is kept in `.pdw/upstream-package-prepack/`.
+- **`snapshot()` guard rails (implemented upstream, with fixtures)**: when Git is the source of the file list the work
+  tree must equal the project root, and a covered set with no readable file refuses to record an empty baseline. This
+  closes the defect shape in which an empty `contents` baseline makes every later drift comparison pass (research
+  decision D-0084; the failure direction is now safe, before any model call).
+- **`scripts/update.mjs` — the 9th file**: one-command self-update from the published repository. It clones
+  `--depth 1 --branch main` with `core.autocrlf=false` (the operator's line-ending settings cannot distort the byte
+  comparison), compares the whole skill tree, backs the installed copy up into
+  `<project>/.pdw/skill-upgrade-<YYYYMMDD>/`, replaces changed/added files atomically (it can replace itself), then
+  runs `doctor`. Idempotent, never touches `.pdw/config.json`, deletes nothing, never commits or pushes.
+- **The Skill carries its own origin**: `SKILL.md` frontmatter `metadata` (`version` / `repository` / `skill-path` /
+  `branch` / `updated`) plus a distribution section in `SKILL.md` and `references/runtime.md`. These no longer live
+  only in this repository's documents, so the upstream package and this repository stop drifting apart.
+- **Line endings**: all 9 files are LF (the package previously mixed CRLF and LF in `SKILL.md`, `scripts/pdw.mjs`,
+  `agents/openai.yaml`, `assets/audit-task.json` and `references/runtime.md`). The only remaining local adaptation is
+  the two repository-layout probes.
+- Test counts: `pdw.test.mjs` 34 → **38** cases (two snapshot guard fixtures, two updater fixtures),
+  `drivers.test.mjs` 16, `validate-skills.test.mjs` 7, `archive/tools/run-tests.mjs` 43 (42 pass + 1 conditional skip).
+- The pre-re-cut 8 files are kept in `.pdw/skill-adaptation-20261017-recut/pre-package-baseline/`.
+
+### Distribution
+- Mirror and project copies (`finquant-hub`, `Vessel_Harness`, `model-infra-kit`, `remote-job-aggregator`) were
+  refreshed to the re-cut 9 files by per-file sha256; old copies are in each project's
+  `.pdw/skill-upgrade-20261017-recut/`; each project's own `.pdw/config.json` is untouched and `doctor` exits 0.
+- The `<!-- pdw-skill-sync -->` blocks in those projects now describe 9 files and the `update.mjs` path.
+- Still **no tag, no Release, no npm publish**: distribution rolls on `main`.
+
 ## [main] — 2026-10-17 — Import research 1.3.3-local, distribute from the shared personal-skills area, roll on `main`
 
 ### Skill content

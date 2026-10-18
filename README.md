@@ -66,6 +66,7 @@ npx skills add satan9394/personal-dev-workflow
 | Manual copy (universal) | copy `skills/personal-dev-workflow/` into `<project>/.agents/skills/` — discovered by Codex, OpenCode, DSH and Antigravity |
 | Manual copy (Claude Code) | copy `skills/personal-dev-workflow/` into `~/.claude/skills/` or `<project>/.claude/skills/` |
 | Into an existing project | `node <skill>/scripts/pdw.mjs install --project <path>` — refuses to overwrite an existing skill of the same name |
+| Update an installed copy | `node .agents/skills/personal-dev-workflow/scripts/update.mjs --project <path>` — clones published `main`, byte-compares the whole skill tree, backs up into `.pdw/skill-upgrade-<date>/`, replaces changed files atomically, runs `doctor`; idempotent, never touches `.pdw/config.json`, deletes nothing (`--dry-run` compares only) |
 
 On the author's machine the Skill is **not** installed through `npx skills add`. The canonical copy is
 `skills/personal-dev-workflow/` in this repository, published to GitHub `main`, mirrored into the shared
@@ -89,6 +90,7 @@ node <skill>/scripts/pdw.mjs run      <id>                  # two read-only scan
 node <skill>/scripts/pdw.mjs status   [id]                  # evidence freshness (evidence_current=false ⇒ drift)
 node <skill>/scripts/pdw.mjs handoff  <id>                  # refresh HANDOFF.md, spend nothing
 node <skill>/scripts/pdw.mjs cancel   <id> | resume <id>     # stop the process tree / continue from stage facts
+node <skill>/scripts/update.mjs       --project <project>   # self-update the installed copy from published main
 ```
 
 The contract lives in `.pdw/tasks/<id>/contract.json`; `baseline.json` freezes the starting file hashes;
@@ -130,7 +132,7 @@ Minimal contract (fields are documented in [`references/runtime.md`](skills/pers
 personal-dev-workflow/
 ├── skills/personal-dev-workflow/      # THE skill (research 1.3.3-local): SKILL.md + references/runtime.md
 │                                      #   + agents/openai.yaml + assets/audit-task.json
-│                                      #   + scripts/{pdw.mjs, drivers.mjs, pdw.test.mjs, drivers.test.mjs}
+│                                      #   + scripts/{pdw.mjs, drivers.mjs, drivers.test.mjs, pdw.test.mjs, update.mjs}
 ├── scripts/validate-skills.mjs        # frontmatter + reference + version-consistency checks
 ├── .github/workflows/                 # validate-skills.yml
 ├── archive/                           # v1.x / v0.5.x legacy: tools, demos, docs, taskcard-cli.js
@@ -165,10 +167,13 @@ This repo practices what the skill preaches:
 - `node --test scripts/validate-skills.test.mjs` — real validator fixtures for valid packaging,
   rejected metadata/version drift and fragment links.
 - `node --test skills/personal-dev-workflow/scripts/drivers.test.mjs` — native discovery, profile
-  policies and the retained role-JSON recovery patch, including malformed-output rejection.
-- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 34 fixture orchestration cases,
+  policies and malformed-output rejection, plus the Windows Codex npm layout, Chinese paths and
+  argument boundaries.
+- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 38 fixture orchestration cases,
   including ignored Git roots/scope, evidence freshness, budgets, locks, cancellation and failure
-  reporting. Evidence stays in this checkout's `.pdw/test-runs/` (or the installed project's `.pdw/`).
+  reporting, the two `snapshot()` guard rails (a foreign work tree, and a covered set with no readable
+  file) and the bundled updater (byte comparison, backup, idempotence, untouched `.pdw/config.json`).
+  Evidence stays in this checkout's `.pdw/test-runs/` (or the installed project's `.pdw/`).
   These are real local fixture processes, not live provider verification.
 - `node archive/tools/run-tests.mjs` — the retained v0.5.x controller suite; skipped cases remain explicit.
 - CI additionally runs the **official Agent Skills validator** (`skills-ref validate`) pinned to an

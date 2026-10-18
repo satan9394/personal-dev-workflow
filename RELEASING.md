@@ -23,9 +23,11 @@ this repository ships the Skill on a **rolling `main`** branch.
 ## Steps
 
 ```sh
-# 1. 适配上游包（备份 → 覆盖 → 只补仓库布局必需的两处路径探测 → 行尾统一 LF）
+# 1. 适配上游包（备份 → 覆盖 → 只补仓库布局必需的两处路径探测）
 #    see DEPLOYMENT.md 步骤 1
 # 2. 抬 pdwSkillVersion（仅在导入新研究版时）并同步正文版本串（`SKILL.md`、`scripts/pdw.mjs`）
+#    同版本号重切（如 1.3.3-local 的 2026-10-17 重切）不动版本串，但要更新 CHANGELOG 与
+#    DEPLOYMENT.md 步骤 1 的参考值表，并按逐文件 sha256 判新旧
 # 3. verify locally
 node scripts/validate-skills.mjs
 node --test scripts/validate-skills.test.mjs
@@ -38,7 +40,7 @@ git commit -m "feat(skill): import research <version> …"
 git push origin main
 # 5. 刷新丙区读取位（它是 GitHub main 的本地镜像，四个 agent 随之生效）
 #    push 完成后 clone --depth 1 --branch main 取远端子路径 skills/personal-dev-workflow/，
-#    与丙区那 8 个文件逐文件比 sha256：无差异什么都不改；有差异才先备份再整份覆盖。
+#    与丙区那 9 个文件逐文件比 sha256：无差异什么都不改；有差异才先备份再整份覆盖。
 #    命令与边界见 DEPLOYMENT.md §5（丙区不再直接由本仓库复制）
 ```
 
