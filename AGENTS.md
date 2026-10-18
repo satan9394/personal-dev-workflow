@@ -17,4 +17,4 @@ This repository maintains and distributes the iterated Skill. Workflow research 
 - **本仓库只产出 Skill**：`skills/personal-dev-workflow/` 是唯一交付物。**不做 DSH 插件、不产任何派生副本**——插件 ≠ Skill。
 - 2026-10-16 已移除：`plugin/`（含 `dsh-personal-dev-workflow` 插件与 `dsh-budget-gate`）、`dist/skillhub-pkg`、`scripts/sync-copies.mjs`；`validate-skills.mjs` 的副本校验与插件版本一致性校验、`validate-skills.test.mjs` 里对应的两个用例、CI 里那句"packaging"措辞一并去掉；`package.json` 的 `files` / `scripts` 不再提 plugin、dist、sync。
 - 机理：**不再有副本，就不存在"canonical 与副本漂移"**，也不需要"暂停生成副本"这种临时状态。
-- agent 侧不受影响：四个 agent 读的是**丙区**那份（`~\.agents_four_skills\personal-dev-workflow`，经各自技能根的 Junction）；本技能已从 skills-manager 库移除，`skills update` / `skills deploy` 对它不再适用（见 `DEPLOYMENT.md`）。
+- agent 侧不受影响：**读同一处的四个 agent 是 Claude Code、OpenCode、DeepSeek Harness、Antigravity**（三个技能根，OpenCode 复用 `~\.claude\skills`），真身是丙区 `~\.agents_four_skills\personal-dev-workflow`；**Codex 不读这些技能**。本技能已从 skills-manager 库移除，`skills update` / `skills deploy` 对它不再适用（见 `DEPLOYMENT.md`）。

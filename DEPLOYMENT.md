@@ -14,14 +14,17 @@
 ~\.agents_four_skills\personal-dev-workflow     ← 丙区真身：四 agent 共用位（2026-10-17 起取代 skills-manager 库）
         │  四个 agent 技能根里的直系 Junction
         ▼
-~\.claude\skills / ~\.dsh\skills / ~\.gemini\antigravity\skills / ~\.codex\skills
+~\.claude\skills / ~\.dsh\skills / ~\.gemini\antigravity\skills
         │  项目需要时复制（install --project）
         ▼
 <项目>/.agents/skills/personal-dev-workflow/    ← 项目级真副本（长期项目自带一份）
 ```
 
-- **丙区（`~\.agents_four_skills\`）是本技能唯一的使用位真身**：`~\.claude\skills`（Claude 与 OpenCode 共用）、
-  `~\.dsh\skills`、`~\.gemini\antigravity\skills`、`~\.codex\skills` 各有一条直系 Junction 指向它。
+- **丙区（`~\.agents_four_skills\`）是本技能唯一的使用位真身**，由**三个技能根**承载**四个 agent**：
+  `~\.claude\skills`（Claude Code 与 OpenCode 共用，OpenCode 递归读、不另放）、`~\.dsh\skills`（DeepSeek Harness）、
+  `~\.gemini\antigravity\skills`（Antigravity）；上述三根各有一条直系 Junction 指向丙区。
+- **Codex 不在其中**：`~\.codex\skills` 下的同名 junction 与 `~\.codex\skills` 本身**不参与本方案**——Codex 不读这些技能，
+  不要把它算进"四个 agent"，也不要按它建/维护 junction（那里若有历史遗留的链接，属噪音）。
 - **甲（星标库 `stars-scan`）与乙（skills-manager `~\.skills-manager\skills`）都不碰丙区**；本技能已从
   skills-manager 库移除（`skills show personal-dev-workflow` 返回空），因此 `skills update` / `skills deploy` /
   `skills set-source` **对本技能不再适用**。
@@ -110,10 +113,13 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\personal-dev-
 
 | agent | 技能根 | 形态 |
 | --- | --- | --- |
-| Claude Code | `~\.claude\skills` | Junction → 丙区（OpenCode 兼容读它，**不另放** `.config\opencode\skills`） |
+| Claude Code | `~\.claude\skills` | Junction → 丙区 |
+| OpenCode | 复用 `~\.claude\skills` | 不另放 `.config\opencode\skills`（递归读，能看到同一份） |
 | DeepSeek Harness | `~\.dsh\skills` | Junction → 丙区 |
 | Antigravity | `~\.gemini\antigravity\skills` | Junction → 丙区 |
-| Codex | `~\.codex\skills` | Junction → 丙区 |
+
+- **Codex 不读这些技能**：不要给 `~\.codex\skills` 建 junction，也不要把它算进"四个 agent"。
+  （该根下若已有历史遗留的同名链接，属噪音，可另案清理。）
 
 - 丙区新增/改名技能要同步名册 `stars-scan\curated\personal-skills.json` 并建齐 4 条 junction。
 - 本技能已不在 skills-manager 库里：**不要**再用 `skills update` / `skills deploy` / `npx skills add` 处理它。
@@ -163,7 +169,7 @@ Get-ChildItem ~\.dsh\skills, ~\.gemini\antigravity\skills -Force | Where-Object 
 ## 5. 机器现状（2026-10-17 晚实测）
 
 **使用位 = 丙区**：真身 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测）；
-`~\.claude\skills`、`~\.dsh\skills`、`~\.gemini\antigravity\skills`、`~\.codex\skills` 各一条直系 Junction 指向它，
+`~\.claude\skills`、`~\.dsh\skills`、`~\.gemini\antigravity\skills` 各一条直系 Junction 指向它（三个根、四个 agent；**Codex 不读这些技能**，`~\.codex\skills` 不参与），
 六处（仓库/丙区/四个链接）**8/8 逐字节一致、行尾全 LF**。`~\.config\opencode\skills\personal-dev-workflow` 不存在
 （刻意不挂，OpenCode 兼容读 `~\.claude\skills`）。本技能已从 skills-manager 库移除；
 dsh 原来的 2.0.0 真副本备份在本仓库 `.pdw/migrations/dsh-skill-copy-2.0.0-20261017/`（已进回收站）。
