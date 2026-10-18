@@ -277,3 +277,17 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 **换配置的条件**：只在用户明确要求时（换源、换布局、换备份位置等）；换完同步更新本节、各项目的
 `pdw-skill-sync` 块与 `CHANGELOG.md`。
+
+### 7.1 思考深度（effort）口径（2026-10-17）
+
+- **档位由模型自身定义**，本机唯一依据是 TUI 状态文件 `~\.local\state\opencode\model.json#variant`
+  （哪个模型支持哪几档、默认第几档，以它为准）；**别照抄别处**（别沿用别的 agent / 别的文档里的档位说法）。
+- 角色里写 **`reasoning_effort`**（如 `"high"`）或 **`model#variant`**（如 `"…flash#max"`）**二选一**，**别同时写**。
+- 2026-10-17 固定的默认：**`roles.review` 钉该模型可用的最高档**——
+  `commandgota/deepseek/deepseek-v4.1-flash`（`finquant-hub`）→ `max`；
+  `workbuddy/deepseek-v4.1-flash`（`Vessel_Harness` / `model-infra-kit` / `remote-job-aggregator`）→ `high`（该模型只到 `high`）。
+- **`scan` / `test-plan` / `implement` / `planner` 保持原状**（host-default 或既有的 `medium`），本口径不涉及。
+- **换档属项目级 config 变更**，按本节口径需**用户明确要求**；改前把 `<项目>\.pdw\config.json` 备份到
+  `<项目>\.pdw\skill-upgrade-<YYYYMMDD>\config.json.bak-effort-<YYYYMMDD>`，改后跑
+  `node <项目>/.agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` 复核。
+- 落地证据（2026-10-17）：上述四处 `review` 已钉档、备份如上，四处 `doctor` 均 `exit 0`。
