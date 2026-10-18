@@ -3,26 +3,51 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [main] — 2026-10-17 — Import research 1.3.3, switch distribution to the shared personal-skills area, adopt a rolling release policy
+## [main] — 2026-10-17 — Import research 1.3.3-local, distribute from the shared personal-skills area, roll on `main`
 
-### Changed
-- **The Skill now follows the upstream research package verbatim** (`1.3.3-local`, built in
+### Skill content
+- **The canonical Skill now is the upstream research package** `1.3.3-local` (built in
   `人机协作开发工作流研究/artifacts/releases/1.3.3-local`): `SKILL.md`, `references/runtime.md`,
-  `scripts/pdw.mjs`, `scripts/drivers.mjs`, `scripts/drivers.test.mjs`, `scripts/pdw.test.mjs` were replaced by the
-  package content. `pdwSkillVersion` `1.3.2-local` → `1.3.3-local`. Brings upstream's OpenCode TUI effort handling
-  (`/effort`, `/thinking`, model variants) and the state-write lock retry.
-- **Only the repository-layout adaptations are kept**: one path probe each in `scripts/pdw.test.mjs` and
-  `scripts/drivers.test.mjs` (3 levels in-repo vs 4 levels installed — without it the tests write evidence into
-  `<projects-root>\.pdw`), plus LF line endings (the packaged `scripts/pdw.mjs` is CRLF).
-- **Downstream repairs that the upstream package does not carry were dropped** (per the "upstream package is the
-  baseline" instruction): the role-JSON recovery in `drivers.mjs` (`jsonValues`, fences, balanced braces), its
-  regression cases, and the final-response wording paragraph in `references/runtime.md`. The previous 8 files are
-  kept at `.pdw/skill-adaptation-20261017/pre-package-baseline/` for traceability; if those behaviours are wanted
-  they belong upstream, not as a local patch.
-- **Release policy replaced: rolling `main`.** No more tags, GitHub Releases or npm publishing.
-  `package.json.version` stays at `2.0.1` and is no longer bumped; see `RELEASING.md`.
-- Distribution moved to a shared personal-skills area on the author's machine (details in `DEPLOYMENT.md`);
-  the skill was removed from the skills-manager library, so `skills update` / `skills deploy` no longer apply to it.
+  `scripts/pdw.mjs`, `scripts/drivers.mjs`, `scripts/drivers.test.mjs`, `scripts/pdw.test.mjs` match the package
+  byte-for-byte; `agents/openai.yaml` and `assets/audit-task.json` were already identical.
+  `pdwSkillVersion`: `1.3.2-local` → `1.3.3-local` (the body version strings follow).
+- **New upstream behaviour**: OpenCode TUI effort/variant handling — `/effort`, `/thinking`, `/variants`, model
+  variants, and `reasoning_effort` in role config (or the `model#variant` shorthand) — plus the state-write lock retry.
+- **Known reduction (intentional, package-as-baseline)**: 1.3.3 is a subtractive refactor. `drivers.mjs` drops
+  `balancedSpans` and adds `modelSettings`; `drivers.test.mjs` goes from 28 to 14 cases and no longer contains the
+  role-JSON recovery / malformed-JSON / final-file-precedence cases. Consequently the two local repairs this repo
+  used to carry — role-JSON recovery from prose, fences and balanced braces (`jsonValues`), and the final-response
+  wording paragraph in `references/runtime.md` — are gone with them. If that robustness is wanted back, it belongs
+  in the research project and should arrive as a new package, not as a local patch.
+- **Only repository-layout adaptations are kept**: one path probe each in `scripts/pdw.test.mjs` and
+  `scripts/drivers.test.mjs` (3 levels in-repo vs 4 levels installed — without it the test suites write evidence
+  into the repository's parent directory), and LF line endings (the packaged `scripts/pdw.mjs` ships CRLF).
+- The previous 8 files are kept in `.pdw/skill-adaptation-20261017/pre-package-baseline/` for traceability.
+
+### Distribution
+- **Repository and package renamed**: `satan9394/dsh-personal-dev-workflow` → `satan9394/personal-dev-workflow`
+  (`gh repo rename`; the old URL redirects), package name → `@satan9394/personal-dev-workflow`, and the old
+  GitHub Packages artifact (`@satan9394/dsh-personal-dev-workflow`) was deleted.
+- **Single install location**: the Skill now ships from the author's shared personal-skills area
+  (`~/.agents_four_skills/personal-dev-workflow`). It was removed from the skills-manager library, so
+  `skills update` / `skills deploy` / `skills set-source` no longer apply to it.
+- **No junctions**: OpenCode registers that directory natively (`opencode.json#skills`), DeepSeek Harness via
+  `skill-filesystem.customSkillDirs`; Claude Code and Antigravity have no such setting and read `<name>/SKILL.md`
+  on demand. **Codex does not read skills** and is out of scope. The 16 per-agent links were removed.
+- **Project-level copies** are plain copies with a fixed layout: `<project>/.agents/skills/personal-dev-workflow/`
+  (8 files, LF) + the project's own `.pdw/config.json` untouched + a `<!-- pdw-skill-sync -->` block in the
+  project's `AGENTS.md` that tells a project agent how to re-sync from the canonical source when asked ("更").
+  Configured and verified on 2026-10-17: `finquant-hub`, `Vessel_Harness`, `model-infra-kit`,
+  `remote-job-aggregator` — 8/8 files identical to the source and `doctor` exit 0 in all four.
+
+### Release policy
+- **Rolling `main`, no versioned releases**: no tags, no GitHub Releases, no npm publishing. `package.json.version`
+  stays at `2.0.1` and is no longer bumped; "releasing" now means pushing `main`. See `RELEASING.md`.
+
+### Verification
+- `node scripts/validate-skills.mjs` (declares `1.3.3-local`, matching `pdwSkillVersion`; distribution `2.0.1`),
+  `validate-skills.test`, `drivers.test`, `pdw.test` (34 pass) and `archive/tools/run-tests.mjs`
+  (42 pass + 1 conditional skip) are green; the `validate-skills` CI job is green on every push.
 
 ### Fixed
 - Test runs no longer create `.pdw` in the parent of the repository (the stray directory was recycled).
