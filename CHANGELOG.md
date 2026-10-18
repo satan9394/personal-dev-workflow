@@ -3,6 +3,25 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-18 — Second re-cut of `1.3.3-local`: the updater states the config-confirmation rule
+
+### Skill content (same research version string, new bytes)
+- **`scripts/update.mjs` now says it out loud**: on both the `already current` and the `updated` path it prints that
+  model, reasoning depth, limits and `prompt_guidance` are project settings that need a diff and explicit user
+  confirmation, and it always carries the same sentence as `summary.note`. `SKILL.md` and `references/runtime.md`
+  state the rule too, and the updater fixture asserts the wording.
+- **Why**: on 2026-10-18 two agy sessions learned "skill is current" from `update.mjs` and then rewrote project model
+  settings unprompted. The rule itself is already recorded in `DEPLOYMENT.md` §7 and in every project's
+  `<!-- pdw-skill-sync -->` block; this round makes the runtime say it as well.
+- Only local adaptation stays the two layout probes; test counts unchanged (`pdw.test.mjs` 38, `drivers.test.mjs` 16,
+  validator 7, archive 43).
+- Superseded bytes are kept in `.pdw/upstream-package-prepack/`: `25da41f8…` (original) and `38167ace…` (first
+  re-cut); the current archive is `e61a3307…`.
+
+### Distribution
+- Mirror and the four project copies are refreshed to the second re-cut by per-file sha256; no project
+  `.pdw/config.json` is touched; `doctor` exits 0. Still no tag, no Release, no npm publish.
+
 ## [main] — 2026-10-18 — Config-change confirmation gate, effort and model matrix refresh
 
 ### Rules and documentation

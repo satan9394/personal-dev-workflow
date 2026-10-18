@@ -41,16 +41,18 @@
 - Skill `SKILL.md` frontmatter = `name` + `description` + 出处 `metadata`（`version` / `repository` / `skill-path` /
   `branch` / `updated`；`metadata` 是 Agent Skills 规范认可的字段），正文写研究版；`argument-hint` 这类
   Claude Code 专有字段仍然禁止（会让 claude.ai 上传失败）。
-- **重切同版本号**：上游 1.3.3-local 于 2026-10-17 就地重切、版本串未动，所以"看版本串"不足以判新旧，
-  **比对一律按逐文件 sha256**（丙区与项目副本的刷新流程本来就是散列比对，见 §5、§7）。
+- **重切同版本号**：上游 1.3.3-local 于 2026-10-17 与 2026-10-18 各就地重切一次、版本串始终未动，所以"看版本串"
+  完全不足以判新旧，**比对一律按逐文件 sha256**（丙区与项目副本的刷新流程本来就是散列比对，见 §5、§7）。
 - 校验器口径：源版本比 `pdwSkillVersion`，发布号比 `package.json`。
 
 ## 3. 与研究发布包的关系（**以研究包为准**，2026-10-17 起）
 
 研究项目（下文记作 `<research-repo>`）是上游，交付包在 `artifacts/releases/<version>/`
-（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**
-（2026-10-17 **就地重切**：版本号不变、包字节已变；重切前的旧包 sha256 `25da41f8…` 在本仓库
-`.pdw/upstream-package-prepack/` 留档）。
+（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**，已**就地重切两次**
+（版本号始终不变、包字节每轮都变）：最初 `25da41f8…` → 2026-10-17 重切为 `38167ace…` →
+2026-10-18 第二次重切为 `e61a3307…`；两个旧一代的包字节都在本仓库
+`.pdw/upstream-package-prepack/`（`personal-dev-workflow-1.3.3-local-pre-repack-20261017.zip` /
+`…-pre-repack2-20261018.zip`）留档。
 
 - **规则：以研究包为准做适配**（2026-10-17 用户口径，取代先前"只作对照基准、不覆盖"）。
   适配 = 包内容原样落地 + **只保留仓库布局所必需的改动**：
@@ -102,17 +104,17 @@ Copy-Item "$tmp\personal-dev-workflow\*" 'skills\personal-dev-workflow' -Recurse
 Copy-Item 'skills\personal-dev-workflow\*' "$env:USERPROFILE\.agents_four_skills\personal-dev-workflow" -Recurse -Force
 ```
 
-参考值（2026-10-17 重切后，`1.3.3-local`，sha256 前 10 位；内容变动时同步更新）：
+参考值（2026-10-18 第二次重切后，`1.3.3-local`，sha256 前 10 位；内容变动时同步更新）：
 
 | 文件 | 上游 1.3.3 包 | 本项目 / 丙区 |
 | --- | --- | --- |
-| SKILL.md | `9596d455…` | 同（未改） |
+| SKILL.md | `ea60dcf1…` | 同（未改） |
 | agents/openai.yaml | `f8cfe876…` | 同（未改） |
 | assets/audit-task.json | `fe2d91b6…` | 同（未改） |
-| references/runtime.md | `62927cf8…` | 同（未改） |
+| references/runtime.md | `bc006bb8…` | 同（未改） |
 | scripts/drivers.mjs | `4821702b…` | 同（未改） |
 | scripts/pdw.mjs | `42e393e1…` | 同（未改） |
-| scripts/update.mjs | `c410ea69…` | 同（未改） |
+| scripts/update.mjs | `8fbe036f…` | 同（未改） |
 | scripts/drivers.test.mjs | `dc6ecbc0…` | 改一处（仓库布局探测） |
 | scripts/pdw.test.mjs | `6e5eccfe…` | 改一处（仓库布局探测） |
 
