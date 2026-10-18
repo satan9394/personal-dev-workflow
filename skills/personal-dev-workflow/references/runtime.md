@@ -137,7 +137,6 @@ node --test <本Skill>/scripts/drivers.test.mjs
 
 它创建并保留隔离用例、启动真实本地子进程，用 fixture CLI 测试完成条件、检查失败、定向修复、越界、只读违规、输出解析、漂移、预算、进程超时、并发锁、取消与恢复，并覆盖被父仓库忽略的夹具根、项目 Git ignore 与 info/exclude 隐藏的显式范围。驱动测试另验证 Windows Codex npm 布局、中文路径与参数边界。**这些套件验证编排/发现逻辑，真实 OC/Codex/AGY 的登录和路由需要另外的 live task。** 夹具保存在项目 `.pdw/test-runs/`，没有自动清理。
 
-
 ## 分发与更新（本仓库附加）
 
 本 Skill 的更新以 GitHub 为准，不以任何本机目录为准。
