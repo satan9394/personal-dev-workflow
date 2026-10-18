@@ -170,6 +170,7 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 ## 5. 机器现状（2026-10-17 晚实测）
 
 **使用位 = 丙区，且只有这一个根**：真身 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测）。
+项目级同步源与此不同：见 §7（GitHub main）。
 四个 agent 的读法：**OpenCode** 由 `~\.config\opencode\opencode.json#skills` 原生注册该目录；**DSH** 由 web profile 的
 `skill-filesystem.customSkillDirs` 原生注册；**Claude Code 与 Antigravity 无该配置，按需直接读 `<名>\SKILL.md`**；
 **Codex 不读 skill，不在四者之内**。**不再有 junction**：四个 agent 技能根里指向丙区的 16 条链接已于 2026-10-17 全部清掉
@@ -258,15 +259,17 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 每个长期项目里那份副本的固定形态：
 
-- 位置：`<项目>/.agents/skills/personal-dev-workflow/`，内容 = 源（丙区真身）的 8 文件，**逐字节一致、行尾 LF**；
+- 位置：`<项目>/.agents/skills/personal-dev-workflow/`，内容 = 源（GitHub `main`）的 8 文件，**逐字节一致、行尾 LF**；
 - 项目自己的 `.pdw/config.json` **保持不动**（角色/模型/exe 路径属项目）；
 - 项目 `AGENTS.md` 里有 **`<!-- pdw-skill-sync -->` 块**，写明唯一技能源与"更"的执行流程。
 
-**唯一技能源**：`<home>\.agents_four_skills\personal-dev-workflow`。
+**唯一技能源**：GitHub `satan9394/personal-dev-workflow` 的 `main`（子路径 `skills/personal-dev-workflow/`）；本机丙区 `~\.agents_four_skills\personal-dev-workflow` 只是**离线镜像/兜底**，版本串须与远端一致。
 
 **用户说「更」/「更新 skill」时**（已逐字写进各项目 `AGENTS.md`）：
 
-1. 逐文件比 `sha256(源)` 与 `sha256(本地副本)`（8 个；缺文件也算差异）；
+1. 取远端到临时目录：`git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow <临时目录>`，
+   再逐文件比 `sha256(远端 8 文件)` 与 `sha256(本地副本)`（8 个；缺文件也算差异）；
+   网络不可用才退回本地镜像，并在报告里说明；
 2. 无差异 → 只回一句「已是最新（<版本>）」，不改任何文件；
 3. 有差异 → 备份本地副本到 `.pdw/skill-upgrade-<YYYYMMDD>/` → 用源 8 文件整份替换
    （保留 `agents/ assets/ references/ scripts/` 四层）→ **不动 `.pdw/config.json`** →
