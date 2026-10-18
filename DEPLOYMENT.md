@@ -11,24 +11,25 @@
 本仓库 skills/personal-dev-workflow/            ← 唯一开发位与权威内容（agent 不直接读它）
         │  直接复制（无库、无 deploy 命令）
         ▼
-~\.agents_four_skills\personal-dev-workflow     ← 丙区真身：四 agent 共用位（2026-10-17 起取代 skills-manager 库）
-        │  四个 agent 技能根里的直系 Junction
+~\.agents_four_skills\personal-dev-workflow     ← 丙区真身：**唯一使用位**（2026-10-17 起取代 skills-manager 库）
+        │  oc：~\.config\opencode\opencode.json 的 `skills` 数组原生注册这个目录
+        │  dsh：web profile 的 `skill-filesystem.customSkillDirs` 原生注册这个目录
+        │  cc / agy：没有该配置，按需直接读 <名>\SKILL.md
         ▼
-~\.claude\skills / ~\.dsh\skills / ~\.gemini\antigravity\skills
-        │  项目需要时复制（install --project）
-        ▼
-<项目>/.agents/skills/personal-dev-workflow/    ← 项目级真副本（长期项目自带一份）
+<项目>/.agents/skills/personal-dev-workflow/    ← 项目级真副本（长期项目需要时复制）
 ```
 
-- **丙区（`~\.agents_four_skills\`）是本技能唯一的使用位真身**，由**三个技能根**承载**四个 agent**：
-  `~\.claude\skills`（Claude Code 与 OpenCode 共用，OpenCode 递归读、不另放）、`~\.dsh\skills`（DeepSeek Harness）、
-  `~\.gemini\antigravity\skills`（Antigravity）；上述三根各有一条直系 Junction 指向丙区。
-- **Codex 不在其中**：`~\.codex\skills` 下的同名 junction 与 `~\.codex\skills` 本身**不参与本方案**——Codex 不读这些技能，
-  不要把它算进"四个 agent"，也不要按它建/维护 junction（那里若有历史遗留的链接，属噪音）。
+- **丙区（`~\.agents_four_skills\`）是本技能唯一的使用位真身**，而且是**一个根承载四个 agent**：
+  OpenCode 与 DSH 各自在配置里**原生注册**这一个目录（oc: `opencode.json#skills`；dsh: web profile 的
+  `skill-filesystem.customSkillDirs`，独立提供方 `personal-filesystem`）；**cc 与 agy 没有该配置，按需直接读
+  `<home>\.agents_four_skills\<名>\SKILL.md`**。
+- **不再用 junction 挂载**：四个 agent 技能根（`~\.claude\skills`、`~\.dsh\skills`、`~\.gemini\antigravity\skills`、
+  `~\.codex\skills`）里的丙区 junction 已于 2026-10-17 全部清掉（16 条，进回收站）；不要再建。
+- **Codex 不读 skill，不在四者之内**：`~\.codex\skills` 与本方案无关。
 - **甲（星标库 `stars-scan`）与乙（skills-manager `~\.skills-manager\skills`）都不碰丙区**；本技能已从
   skills-manager 库移除（`skills show personal-dev-workflow` 返回空），因此 `skills update` / `skills deploy` /
   `skills set-source` **对本技能不再适用**。
-- 丙区新增或重命名技能，必须同步加进名册 `stars-scan\curated\personal-skills.json` 并建齐 4 条 junction；
+- 丙区新增或重命名技能，只需同步名册 `stars-scan\curated\personal-skills.json`（**不再需要建 junction**）；
   边界全文见 `<claude-code-root>\skills-governance\SKILL-BOUNDARIES-AGENTS-FOUR-SKILLS.md`。
 - 改内容只改仓库那份；丙区与项目副本都由"复制"刷新，**不手工编辑丙区**。
 
@@ -102,26 +103,23 @@ Copy-Item 'skills\personal-dev-workflow\*' "$env:USERPROFILE\.agents_four_skills
 | scripts/drivers.test.mjs | `dc6ecbc0…` | 改一处（仓库布局探测） |
 | scripts/pdw.test.mjs | `6e5eccfe…` | 改一处（仓库布局探测） |
 
-### 步骤 2 · 四个 agent 的使用位（丙区 + Junction）
+### 步骤 2 · 四个 agent 的使用位（丙区原生注册，**不用 junction**）
 
-四个 agent 共用丙区真身 `~\.agents_four_skills\personal-dev-workflow`，每条都是**直系 Junction**：
+丙区真身 `~\.agents_four_skills\personal-dev-workflow` 被**一个根**承载，四个 agent 这样拿到它：
 
-```powershell
-# 建/修 junction（Claude 示例，其余三个同样指向丙区）
-New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\personal-dev-workflow" -Target "$env:USERPROFILE\.agents_four_skills\personal-dev-workflow"
-```
-
-| agent | 技能根 | 形态 |
+| agent | 读法 | 配置位置 |
 | --- | --- | --- |
-| Claude Code | `~\.claude\skills` | Junction → 丙区 |
-| OpenCode | 复用 `~\.claude\skills` | 不另放 `.config\opencode\skills`（递归读，能看到同一份） |
-| DeepSeek Harness | `~\.dsh\skills` | Junction → 丙区 |
-| Antigravity | `~\.gemini\antigravity\skills` | Junction → 丙区 |
+| OpenCode | 原生注册这个目录 | `~\.config\opencode\opencode.json` → `"skills": ["C:\\Users\\<user>\\.agents_four_skills"]` |
+| DeepSeek Harness | 原生注册这个目录 | web profile `cordis.patch.yml` → `skill-filesystem.customSkillDirs: ['<home>\.agents_four_skills']`（提供方 `personal-filesystem`） |
+| Claude Code | **按需直接读** `<名>\SKILL.md` | 无该配置 |
+| Antigravity | **按需直接读** `<名>\SKILL.md` | 无该配置 |
 
-- **Codex 不读这些技能**：不要给 `~\.codex\skills` 建 junction，也不要把它算进"四个 agent"。
-  （该根下若已有历史遗留的同名链接，属噪音，可另案清理。）
-
-- 丙区新增/改名技能要同步名册 `stars-scan\curated\personal-skills.json` 并建齐 4 条 junction。
+- **Codex 不读 skill，不在四者之内**（`~\.codex\skills` 与本方案无关）。
+- **不要建 junction**：四个 agent 技能根里的丙区 junction 已于 2026-10-17 全部清掉（16 条，进回收站）；
+  新增/改名技能只需同步名册 `stars-scan\curated\personal-skills.json`。
+- 验证：`Get-Content ~\.config\opencode\opencode.json | Select-String agents_four_skills` 与
+  `Select-String <dsh web profile>\cordis.patch.yml -Pattern customSkillDirs -Context 0,2` 都应命中丙区路径；
+  再确认四个技能根里 `LinkType` 指向丙区的条目数为 **0**。
 - 本技能已不在 skills-manager 库里：**不要**再用 `skills update` / `skills deploy` / `npx skills add` 处理它。
 
 ### 步骤 3 · 项目级副本升级（长期项目）
@@ -168,11 +166,13 @@ Get-ChildItem ~\.dsh\skills, ~\.gemini\antigravity\skills -Force | Where-Object 
 
 ## 5. 机器现状（2026-10-17 晚实测）
 
-**使用位 = 丙区**：真身 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测）；
-`~\.claude\skills`、`~\.dsh\skills`、`~\.gemini\antigravity\skills` 各一条直系 Junction 指向它（三个根、四个 agent；**Codex 不读这些技能**，`~\.codex\skills` 不参与），
-六处（仓库/丙区/四个链接）**8/8 逐字节一致、行尾全 LF**。`~\.config\opencode\skills\personal-dev-workflow` 不存在
-（刻意不挂，OpenCode 兼容读 `~\.claude\skills`）。本技能已从 skills-manager 库移除；
-dsh 原来的 2.0.0 真副本备份在本仓库 `.pdw/migrations/dsh-skill-copy-2.0.0-20261017/`（已进回收站）。
+**使用位 = 丙区，且只有这一个根**：真身 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测）。
+四个 agent 的读法：**OpenCode** 由 `~\.config\opencode\opencode.json#skills` 原生注册该目录；**DSH** 由 web profile 的
+`skill-filesystem.customSkillDirs` 原生注册；**Claude Code 与 Antigravity 无该配置，按需直接读 `<名>\SKILL.md`**；
+**Codex 不读 skill，不在四者之内**。**不再有 junction**：四个 agent 技能根里指向丙区的 16 条链接已于 2026-10-17 全部清掉
+（进回收站），四个根下的丙区条目数现为 **0**。仓库与丙区两份 **8/8 逐字节一致、行尾全 LF**。
+本技能已从 skills-manager 库移除；dsh 原来的 2.0.0 真副本备份在本仓库
+`.pdw/migrations/dsh-skill-copy-2.0.0-20261017/`（已进回收站）。
 
 **未完成的传播（重要）**：项目级真副本仍停在**上一版**（`1.3.2-local` + 已退场的下游修复），
 尚未刷成本次的 `1.3.3-local`；待刷的四处为 `finquant-hub`、`Vessel_Harness`、`model-infra-kit`、
@@ -245,5 +245,5 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 5. 不用 legacy 的 `skills sync`（按 active preset 批量刷所有 agent，会顺手动别的部署）。
 6. 禁止 `npx skills add`（本机与丙区/junction 机制冲突）；本技能的写入链只有两条：**仓库 → 丙区（复制）**与**仓库 → 项目副本（复制）**。
 7. 丙区真身与项目副本出现 `.bak` / 临时文件时先清掉再复制（否则会被一起带进去）。
-8. **丙区是共用位**：改本技能时只动 `~\.agents_four_skills\personal-dev-workflow`，不要碰同目录的 `tmux-persist` / `utilities` / `agent-risk-guard`；新增或改名技能要同步名册 `stars-scan\curated\personal-skills.json` 并建齐 4 条 junction。
+8. **丙区是共用位**：改本技能时只动 `~\.agents_four_skills\personal-dev-workflow`，不要碰同目录的 `tmux-persist` / `utilities` / `agent-risk-guard`；**不要建 junction**（oc/dsh 原生注册、cc/agy 按需直读），新增或改名技能只同步名册 `stars-scan\curated\personal-skills.json`。
 8. 只在 `skills/personal-dev-workflow/` 里改 Skill 本体；不放插件、不生成派生副本（`AGENTS.md` 的「产物范围」）。
