@@ -169,7 +169,7 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 
 ## 5. 机器现状（2026-10-17 晚实测）
 
-**使用位 = 丙区，且只有这一个根**：真身 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测）。
+**使用位 = 丙区，且只有这一个根**：读取位 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测），**它是 GitHub `main` 的本地镜像，不是独立真身**（见下）。
 项目级同步源与此不同：见 §7（GitHub main）。
 四个 agent 的读法：**OpenCode** 由 `~\.config\opencode\opencode.json#skills` 原生注册该目录；**DSH** 由 web profile 的
 `skill-filesystem.customSkillDirs` 原生注册；**Claude Code 与 Antigravity 无该配置，按需直接读 `<名>\SKILL.md`**；
@@ -177,6 +177,27 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 （进回收站），四个根下的丙区条目数现为 **0**。仓库与丙区两份 **8/8 逐字节一致、行尾全 LF**。
 本技能已从 skills-manager 库移除；dsh 原来的 2.0.0 真副本备份在本仓库
 `.pdw/migrations/dsh-skill-copy-2.0.0-20261017/`（已进回收站）。
+
+**丙区定位 = GitHub `main` 的本地镜像/读取位**（2026-10-17 定）：丙区那 8 个文件的权威来源是
+`https://github.com/satan9394/personal-dev-workflow` 的 `main` 分支子路径 `skills/personal-dev-workflow/`。
+**不要把丙区当作独立真身去改**——要改技能本体只改本仓库的 `skills/personal-dev-workflow/`（第 6 节第 9 条），
+丙区随"push 后再取远端"被动跟进。每次分发仓库 `push` 之后的刷新步骤（只读比对 → 有差异才覆盖）：
+
+```powershell
+# 1) 取远端权威内容（--depth 1，只取 main 最新）
+$tmp = "$env:TEMP\pdw-gh-mirror"
+# 目录已存在时先进回收站（删除铁律），或换一个新目录名
+git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow $tmp
+# 2) 逐文件比对 $tmp\skills\personal-dev-workflow\ 的 8 个文件与丙区（sha256 + 行尾 LF）
+#    SKILL.md、agents/openai.yaml、assets/audit-task.json、references/runtime.md、
+#    scripts/{drivers.mjs,drivers.test.mjs,pdw.mjs,pdw.test.mjs}
+# 3) 无差异 → 什么都不改（不备份也不覆盖）；有差异才覆盖：
+#    先把丙区现有 8 文件**复制**备份到本仓库 .pdw\skill-mirror-backup-<YYYYMMDD>\
+#    （复制、不移动、不删除），再用远端内容整份覆盖丙区，行尾统一 LF，并保留四层目录结构
+```
+
+比对同时要看本仓库本地那份：基线是**三方一致**（GitHub `main` / 丙区 / 本仓库 `skills/personal-dev-workflow/`），
+2026-10-17 实测 `8/8` 逐字节一致、行尾全 LF（SHA 前 10 位见步骤 1 的表）。
 
 **项目级传播（2026-10-17 晚已完成）**：四处项目副本已刷到 `1.3.3-local`（方式见步骤 3；旧副本各自备份在
 `.pdw/skill-upgrade-20261017/personal-dev-workflow-pre-1.3.3/`），四处 `doctor` 均 `exit 0`、5 角色 ready：
