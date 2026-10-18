@@ -79,8 +79,9 @@ metadata:
 
 新会话先用 `status` 定位用户正在继续的任务，再用 `handoff <id>` 核对新鲜度、活动进程和剩余预算。从契约、HANDOFF.md 及其引用的原始证据恢复；有多个候选且无法判断时才询问。源码或契约漂移不能沿用旧通过结论，running 任务不能重复启动。交接在阶段边界落盘，不依赖上下文达到固定百分比。没有宿主读数时不猜测百分比；归档旧对话不由本程序自动执行。
 
-## 分发与更新（本仓库附加）
+## 分发与更新
 
-- 出处、版本与分支以本文件 frontmatter 的 `metadata` 为准（repository / version / skill-path / branch）。唯一更新源是该 repository 的 `main` 分支，技能位于 `skills/personal-dev-workflow/`。
-- 本技能不绑定任何本机路径：项目内副本位于 `.agents/skills/personal-dev-workflow/`，各 agent 从自己的技能根读取；更新一律来自上面的 repository。
-- 用户说「更」/「更新 skill」时：优先从 GitHub 取（详见 `references/runtime.md#分发与更新本仓库附加`），**不要**默认只信本机目录。
+- 出处、版本与分支以本文件 frontmatter 的 `metadata` 为准（repository / version / skill-path / branch）。唯一更新源是该 repository 的 `main` 分支，技能位于 `skills/personal-dev-workflow/`（9 个文件，行尾 LF）。
+- 本技能不绑定任何本机路径：项目内副本位于 `.agents/skills/personal-dev-workflow/`，各 agent 从自己的技能根读取；更新一律来自上面的 repository，不以任何本机目录为准。
+- 项目内一条命令自更新：`node .agents/skills/personal-dev-workflow/scripts/update.mjs --project <项目根>`。它先逐字节比对整份技能目录，有差异才备份到 `.pdw/skill-upgrade-<YYYYMMDD>/` 再原子替换，最后跑 `doctor`；幂等、不动 `.pdw/config.json`、不 commit/push、不删除任何文件。细节见 [运行说明的分发与更新](references/runtime.md#分发与更新)。
+- 脚本不可用时按同一原则手工兜底（`git clone --depth 1 --branch main` → 逐字节比对 → 有差异才备份后整份替换 → 跑 `doctor`）；网络不可用时就地报告失败，不静默沿用本机副本。

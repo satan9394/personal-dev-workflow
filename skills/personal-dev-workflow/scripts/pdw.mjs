@@ -49,6 +49,17 @@ function validateScope(scope) {
     || (scope !== '.' && scope.split('/').some(part => !part || part === '.'))) throw new Error(`Invalid scope (use a canonical relative path): ${scope}`);
 }
 
+/** Real paths of two directories, compared case-insensitively on Windows. */
+function sameDirectory(left, right) {
+  const normalize = value => {
+    let resolved;
+    try { resolved = fs.realpathSync.native(value); } catch { resolved = path.resolve(value); }
+    return resolved.replace(/[\\/]+$/, '');
+  };
+  const a = normalize(left), b = normalize(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
 export function snapshot(root, scopes = []) {
   const tracked = git(root, ['ls-files', '-c', '-o', '--exclude-standard', '-z']);
   const files = new Set(tracked?.split('\0').filter(Boolean) ?? []);
@@ -69,6 +80,16 @@ export function snapshot(root, scopes = []) {
   if (ignoredPaths === null) throw new Error('Cannot determine Git ignore coverage; snapshot aborted');
   const gitIgnored = new Set(ignoredPaths.split('\0').filter(Boolean));
   const filesystem = tracked === null || files.size === 0 || gitIgnored.has(root) || scopes.includes('.');
+  // Path hygiene (see the empty-contents baseline defect): when the Git listing is
+  // trustworthy enough to define the covered files, the work tree must be the project
+  // root. Otherwise the file list and HEAD come from an enclosing repository, whose
+  // ignore rules can hide real files and whose commits look like project drift.
+  if (!filesystem) {
+    const toplevel = git(root, ['rev-parse', '--show-toplevel'])?.trim() ?? null;
+    if (!toplevel || !sameDirectory(toplevel, root)) {
+      throw new Error(`Snapshot requires the Git work tree to be the project root (work tree: ${toplevel ?? 'unknown'}, project: ${root}); run git init in the project, or keep the scope inside a project whose files Git ignore rules do not hide`);
+    }
+  }
   function visit(relative = '') {
     const file = path.join(root, relative);
     if (!inside(root, file)) throw new Error(`Snapshot path escaped project: ${relative}`);
@@ -94,6 +115,11 @@ export function snapshot(root, scopes = []) {
     try { stat = fs.lstatSync(file); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     if (stat.isSymbolicLink()) contents[name] = `symlink:${fs.readlinkSync(file)}`;
     else if (stat.isFile()) contents[name] = hash(fs.readFileSync(file));
+  }
+  // A covered set with no readable file would record an empty baseline, and an empty
+  // baseline makes every later drift comparison pass. Refuse it instead of writing one.
+  if (files.size > 0 && Object.keys(contents).length === 0) {
+    throw new Error(`Snapshot covered ${files.size} file(s) but recorded no readable content; refusing an empty baseline`);
   }
   const head = git(root, ['rev-parse', 'HEAD'])?.trim() ?? null;
   return { fingerprint: hash(JSON.stringify({ head, contents })), head, contents,

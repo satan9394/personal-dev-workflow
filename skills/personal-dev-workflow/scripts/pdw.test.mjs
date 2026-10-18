@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,7 @@ import { snapshot, withSavedOpenCodeVariant } from './pdw.mjs';
 const runtime = fileURLToPath(new URL('./pdw.mjs', import.meta.url));
 const project = path.resolve(path.dirname(runtime), fs.existsSync(new URL('../../../package.json', import.meta.url)) ? '../../..' : '../../../..');
 const evidence = path.join(project, '.pdw', 'test-runs', `${Date.now()}`);
+const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 fs.mkdirSync(evidence, { recursive: true });
 const mock = path.join(evidence, 'fake-cli.mjs');
 fs.writeFileSync(mock, `
@@ -262,6 +264,30 @@ await test('empty Git listing falls back to filesystem instead of an empty guard
   assert.equal(s.coverage.source, 'filesystem'); assert.ok(s.contents['source.txt']);
   assert.ok(!Object.keys(s.contents).some(name => name.startsWith('.pdw/')));
 });
+await test('an entry with no readable file refuses to write an empty baseline', () => {
+  const root = path.join(evidence, 'empty-contents'); fs.mkdirSync(root);
+  const gitRun = (...args) => { const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' }); assert.equal(result.status, 0, result.stderr); };
+  gitRun('init', '--quiet');
+  command(root, ['init']);
+  fs.writeFileSync(path.join(root, 'source.txt'), 'keep');
+  gitRun('add', '.gitignore', 'source.txt');
+  // Indexed but gone from disk: the covered set has entries and no readable content.
+  for (const name of ['.gitignore', 'source.txt']) fs.renameSync(path.join(root, name), path.join(evidence, `empty-contents-${name.replace(/\W/g, '')}-detached`));
+  assert.throws(() => snapshot(root, ['source.txt']), /empty baseline/);
+  const from = path.join(root, '.pdw', 'input.json');
+  fs.writeFileSync(from, JSON.stringify({ goal: 'Keep the indexed source reachable', mode: 'develop', scope: ['source.txt'],
+    acceptance: [{ id: 'AC1', description: 'source.txt is readable' }], checks: [{ id: 'exists', command: process.execPath, args: ['-e', "process.exit(0)"] }] }));
+  const refused = command(root, ['new', '--from', from], 1);
+  assert.match(refused.stderr, /empty baseline/);
+});
+await test('a Git work tree that is not the project root refuses the snapshot', () => {
+  const parent = path.join(evidence, 'foreign-toplevel'); fs.mkdirSync(parent);
+  const init = spawnSync('git', ['init', '--quiet', parent], { encoding: 'utf8' });
+  assert.equal(init.status, 0, init.stderr);
+  const nested = path.join(parent, 'project'); fs.mkdirSync(nested);
+  fs.writeFileSync(path.join(nested, 'source.txt'), 'keep');
+  assert.throws(() => snapshot(nested, ['source.txt']), /work tree to be the project root/);
+});
 await test('Git ignore rules do not hide scoped source from drift or handoff', () => {
   const t = setup('ignored-git-scope', 'success', {}, false, { git: true, files: { '.gitignore': '.agents/\n', '.agents/inside.txt': 'keep' }, scope: ['result.txt', '.agents/inside.txt'] });
   const baseline = JSON.parse(fs.readFileSync(path.join(path.dirname(t.stateFile), 'baseline.json'), 'utf8'));
@@ -352,6 +378,64 @@ await test('doctor rejects missing OC models and policy-changing profile prefixe
   report = JSON.parse(command(t.root, ['doctor'], 1).stdout);
   assert.equal(report.roles.find(r => r.role === 'implement').ready, false);
   assert.ok(report.roles.find(r => r.role === 'implement').configuration_error);
+});
+
+await test('the bundled updater replaces the copy from its published repository and stays idempotent', () => {
+  const skillDirectory = path.dirname(path.dirname(runtime));
+  const copyTree = (source, destination) => {
+    fs.mkdirSync(destination, { recursive: true });
+    for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+      const from = path.join(source, entry.name), to = path.join(destination, entry.name);
+      if (entry.isDirectory()) copyTree(from, to); else fs.copyFileSync(from, to);
+    }
+  };
+  const published = path.join(evidence, 'remote-repo', 'skills', 'personal-dev-workflow');
+  copyTree(skillDirectory, published);
+  fs.appendFileSync(path.join(published, 'references', 'runtime.md'), '\n\nPublished-only line.\n');
+  const gitRun = (...args) => { const result = spawnSync('git', ['-C', path.join(evidence, 'remote-repo'), ...args], { encoding: 'utf8' }); assert.equal(result.status, 0, result.stderr); };
+  const initRemote = spawnSync('git', ['init', '--quiet', '--initial-branch=main', path.join(evidence, 'remote-repo')], { encoding: 'utf8' });
+  assert.equal(initRemote.status, 0, initRemote.stderr);
+  gitRun('-c', 'core.autocrlf=false', 'add', '-A');
+  gitRun('-c', 'core.autocrlf=false', '-c', 'user.email=fixture@localhost', '-c', 'user.name=fixture', 'commit', '--quiet', '-m', 'publish');
+
+  const project = path.join(evidence, 'update-project');
+  copyTree(skillDirectory, path.join(project, '.agents', 'skills', 'personal-dev-workflow'));
+  fs.mkdirSync(path.join(project, '.pdw'), { recursive: true });
+  const profile = { backend: 'opencode', executable: process.execPath, args: [mock, 'success'], model: 'fixture/deepseek' };
+  fs.writeFileSync(path.join(project, '.pdw', 'config.json'), JSON.stringify({ roles: { scan: profile, 'test-plan': profile, implement: profile, review: profile },
+    limits: { max_cli_calls: 8, max_repairs: 1, call_timeout_seconds: 10, task_timeout_seconds: 60 }, cost: { status: 'unknown' } }));
+  const configFile = path.join(project, '.pdw', 'config.json'), configHash = hash(fs.readFileSync(configFile));
+  const installed = path.join(project, '.agents', 'skills', 'personal-dev-workflow');
+  fs.writeFileSync(path.join(installed, 'local-note.md'), 'local only\n');
+
+  const update = spawnSync(process.execPath, [path.join(installed, 'scripts', 'update.mjs'), '--project', project, '--source', path.join(evidence, 'remote-repo'), '--json'], { encoding: 'utf8', timeout: 120000 });
+  assert.equal(update.status, 0, update.stderr);
+  const first = JSON.parse(update.stdout.trim().split(/\r?\n/).at(-1));
+  assert.equal(first.updated, true);
+  assert.deepEqual(first.files.changed, ['references/runtime.md']);
+  assert.deepEqual(first.files.stale_kept, ['local-note.md']);
+  assert.equal(first.doctor.exit_code, 0);
+  assert.ok(fs.existsSync(path.join(first.backup, 'scripts', 'update.mjs')));
+  assert.equal(hash(fs.readFileSync(configFile)), configHash);
+  assert.equal(hash(fs.readFileSync(path.join(installed, 'references', 'runtime.md'))), hash(fs.readFileSync(path.join(published, 'references', 'runtime.md'))));
+  assert.ok(fs.existsSync(path.join(installed, 'local-note.md')));
+
+  const again = spawnSync(process.execPath, [path.join(installed, 'scripts', 'update.mjs'), '--project', project, '--source', path.join(evidence, 'remote-repo'), '--json'], { encoding: 'utf8', timeout: 120000 });
+  assert.equal(again.status, 0, again.stderr);
+  const second = JSON.parse(again.stdout.trim().split(/\r?\n/).at(-1));
+  assert.equal(second.updated, false); assert.equal(second.backup, null);
+  assert.equal(hash(fs.readFileSync(configFile)), configHash);
+});
+await test('the updater refuses a source that has no skill directory', () => {
+  const empty = path.join(evidence, 'remote-empty'); fs.mkdirSync(empty);
+  const init = spawnSync('git', ['init', '--quiet', '--initial-branch=main', empty], { encoding: 'utf8' });
+  assert.equal(init.status, 0, init.stderr);
+  spawnSync('git', ['-C', empty, '-c', 'user.email=fixture@localhost', '-c', 'user.name=fixture', 'commit', '--quiet', '--allow-empty', '-m', 'empty'], { encoding: 'utf8' });
+  const project = path.join(evidence, 'update-empty');
+  fs.mkdirSync(project);
+  const result = spawnSync(process.execPath, [path.join(path.dirname(path.dirname(runtime)), 'scripts', 'update.mjs'), '--project', project, '--source', empty, '--json'], { encoding: 'utf8', timeout: 120000 });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Skill directory not found/);
 });
 
 fs.writeFileSync(path.join(evidence, 'results.json'), JSON.stringify({ scope: 'Fixture CLI orchestration, not live provider integration', outcomes }, null, 2));

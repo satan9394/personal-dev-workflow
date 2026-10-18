@@ -135,16 +135,17 @@ node <本Skill>/scripts/pdw.test.mjs
 node --test <本Skill>/scripts/drivers.test.mjs
 ```
 
-它创建并保留隔离用例、启动真实本地子进程，用 fixture CLI 测试完成条件、检查失败、定向修复、越界、只读违规、输出解析、漂移、预算、进程超时、并发锁、取消与恢复，并覆盖被父仓库忽略的夹具根、项目 Git ignore 与 info/exclude 隐藏的显式范围。驱动测试另验证 Windows Codex npm 布局、中文路径与参数边界。**这些套件验证编排/发现逻辑，真实 OC/Codex/AGY 的登录和路由需要另外的 live task。** 夹具保存在项目 `.pdw/test-runs/`，没有自动清理。
+它创建并保留隔离用例、启动真实本地子进程，用 fixture CLI 测试完成条件、检查失败、定向修复、越界、只读违规、输出解析、漂移、预算、进程超时、并发锁、取消与恢复，并覆盖被父仓库忽略的夹具根、项目 Git ignore 与 info/exclude 隐藏的显式范围。驱动测试另验证 Windows Codex npm 布局、中文路径与参数边界。**这些套件验证编排/发现逻辑，真实 OC/Codex/AGY 的登录和路由需要另外的 live task。** 夹具保存在项目 `.pdw/test-runs/`，没有自动清理。快照另有两道防线：Git 工作树必须是项目根，覆盖到文件却读不出内容时拒绝写入空基线，两者都有夹具用例。
 
-## 分发与更新（本仓库附加）
+## 分发与更新
 
-本 Skill 的更新以 GitHub 为准，不以任何本机目录为准。
+本 Skill 的更新以公开仓库为准，不以任何本机目录为准。
 
-- 源：`https://github.com/satan9394/personal-dev-workflow`，分支 `main`（滚动），路径 `skills/personal-dev-workflow/`（8 个文件：`SKILL.md`、`agents/openai.yaml`、`assets/audit-task.json`、`references/runtime.md`、`scripts/{drivers,drivers.test,pdw,pdw.test}.mjs`）。
-- 步骤：
-  1. `git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-workflow <临时目录>`；网络不可用时退回本机已安装的那份副本（按当前 agent 的技能根自行解析），并在回复里说明用了兜底。
-  2. 用远端 8 个文件与当前副本逐字节比对（sha256，缺文件算差异）。
-  3. 无差异 → 只回「已是最新（<版本>）」。
-  4. 有差异 → 备份当前副本到 `.pdw/skill-upgrade-<YYYYMMDD>/` → 用远端 8 文件整份替换（保留四层目录）→ **不要动 `.pdw/config.json`** → 跑 `node .agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` → 报告版本串与 doctor 结果。
-- 不要改本机镜像当"真身"；镜像只是 GitHub 的下游副本。
+- 源：本 Skill `SKILL.md` frontmatter `metadata` 里的 `repository`，分支 `main`（滚动），路径 `skills/personal-dev-workflow/`（9 个文件，行尾统一 LF）：`SKILL.md`、`agents/openai.yaml`、`assets/audit-task.json`、`references/runtime.md`、`scripts/{drivers,drivers.test,pdw,pdw.test,update}.mjs`。
+- 一条命令自更新（推荐）：在项目根执行 `node .agents/skills/personal-dev-workflow/scripts/update.mjs --project <项目根>`；`--dry-run` 只看差异不写盘，`--json` 只输出摘要。
+  1. 取远端到 `<项目>/.pdw/update-cache/<时间戳>/source`，`git clone --depth 1 --branch main` 并强制 `core.autocrlf=false`，保证比对与写盘不受操作者 Git 行尾设置影响；该缓存不自动清理。
+  2. 逐字节比对整份技能目录（缺文件或散列不同都算差异）；本地多出的文件只报告、不删除。
+  3. 无差异 → 报「已是最新（<版本>）」，不改任何文件，退出 0。
+  4. 有差异 → 备份当前文件到 `<项目>/.pdw/skill-upgrade-<YYYYMMDD>/personal-dev-workflow-pre-<版本>/` → 逐个原子替换（临时名改到目标名，支持替换自身）→ **不动 `.pdw/config.json`** → 跑 `doctor` 并报告退出码。
+- 脚本不可用时的手工兜底：`git clone --depth 1 --branch main <repository> <临时目录>` → 用远端 9 个文件与当前副本逐字节比对（sha256，缺文件算差异）→ 无差异只回「已是最新（<版本>）」→ 有差异就先备份再整份替换（保留四层目录）→ 跑 `doctor`。网络不可用时就地报告失败并说明用了哪份兜底，不静默沿用本机副本。
+- 不要改本机镜像当"真身"；镜像只是公开仓库的下游副本。
