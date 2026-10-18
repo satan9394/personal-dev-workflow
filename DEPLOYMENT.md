@@ -147,16 +147,19 @@ node <skill>/scripts/pdw.mjs install --project <项目绝对路径>
 ### 步骤 4 · 验证
 
 ```powershell
-& $cli skills status personal-dev-workflow          # deployed_to 应含 claude_code / deepseek_harness / antigravity
-Get-ChildItem ~\.dsh\skills, ~\.gemini\antigravity\skills -Force | Where-Object Name -like '*personal*' |
-  Select-Object FullName,LinkType,Target            # 应为 Junction，Target = 库路径
+# 1) 两个原生注册点仍在
+Select-String "$env:USERPROFILE\.config\opencode\opencode.json" -Pattern agents_four_skills
+Select-String "$env:USERPROFILE\.dsh\profiles\web\cordis.patch.yml" -Pattern customSkillDirs -Context 0,2
+# 2) 四个技能根里不应再有指向丙区的链接（应全为 0）
+foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills','~\.codex\skills') { @(Get-ChildItem $r -Force | Where-Object LinkType | Where-Object { $_.Target -like '*\.agents_four_skills\*' }).Count }
+# 3) 仓库与丙区逐文件散列一致
 ```
 
-- 逐文件散列：各使用位读到的 8 个文件应与仓库一致（穿透链接读）。
-- 项目副本：8 文件与库一致 + 该项目 `.pdw/config.json` 前后哈希不变 + doctor 通过。
-- **能证明的边界**：文件层与命令层可证；dsh / agy 客户端里的实际加载要各自打开一次才算实测。
-  2026-10-17 用户决定本轮**不做客户端实测**，因此 `~/.dsh` 与 `~/.gemini/antigravity` 两处仅"文件层已验证"，
-  客户端层是**已知未验项**（不是已验证）。
+- 逐文件散列：仓库 `skills/personal-dev-workflow/` 与丙区真身读到的 8 个文件应逐字节一致（行尾均为 LF）。
+- 项目副本：8 文件与丙区一致 + 该项目 `.pdw/config.json` 前后哈希不变 + doctor 通过。
+- **能证明的边界**：文件层与配置层可证；客户端里"skill 究竟有没有被列出/加载"要各自打开一次才算实测——
+  OpenCode 可用 `opencode api get /api/skill` 复算，DSH 需在其会话里确认。2026-10-17 用户决定本轮不做客户端实测，
+  因此 oc/dsh 两处仅"配置层已验证"，客户端层是**已知未验项**（不是已验证）；cc/agy 按设计就是按需直读。
 
 ### 步骤 5 · 记录
 
