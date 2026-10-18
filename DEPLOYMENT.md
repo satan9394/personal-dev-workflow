@@ -283,13 +283,13 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 8. **丙区是共用位**：改本技能时只动 `~\.agents_four_skills\personal-dev-workflow`，不要碰同目录的 `tmux-persist` / `utilities` / `agent-risk-guard`；**不要建 junction**（oc/dsh 原生注册、cc/agy 按需直读），新增或改名技能只同步名册 `stars-scan\curated\personal-skills.json`。
 9. 只在 `skills/personal-dev-workflow/` 里改 Skill 本体；不放插件、不生成派生副本（`AGENTS.md` 的「产物范围」）。
 
-## 7. 项目级默认配置（2026-10-17 固定，**勿擅改**）
+## 7. 项目级默认配置（2026-10-17 固定，2026-10-18 增补配置确认门，**勿擅改**）
 
 每个长期项目里那份副本的固定形态：
 
 - 位置：`<项目>/.agents/skills/personal-dev-workflow/`，内容 = 源（GitHub `main`）的 9 文件，**逐字节一致、行尾 LF**；
 - 项目自己的 `.pdw/config.json` **保持不动**（角色/模型/exe 路径属项目）；
-- 项目 `AGENTS.md` 里有 **`<!-- pdw-skill-sync -->` 块**，写明唯一技能源与"更"的执行流程。
+- 项目 `AGENTS.md` 里有 **`<!-- pdw-skill-sync -->` 块**，写明唯一技能源、"更"的执行流程，以及**改 `.pdw/config.json` 前必须先经用户确认**这条硬规则（四处块文本一致，见下）。
 
 **唯一技能源**：GitHub `satan9394/personal-dev-workflow` 的 `main`（子路径 `skills/personal-dev-workflow/`）；本机丙区 `~\.agents_four_skills\personal-dev-workflow` 只是**离线镜像/兜底**，散列须与远端一致（版本串已不足以判新旧，见 §2；丙区镜像的刷新步骤见 §5，不重复）。
 
@@ -304,22 +304,35 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
    无差异 → 只回一句「已是最新（<版本>）」；有差异 → 备份 → 用源 9 文件整份替换（保留 `agents/ assets/ references/ scripts/` 四层）
    → **不动 `.pdw/config.json`** → 跑 `node .agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` → 报告散列与 doctor 结果。
 
+**硬规则（随每个项目的 `pdw-skill-sync` 块下发，改本技能时不要漏）**：更新技能**不动**项目 `.pdw/config.json`；模型、思考档位（`reasoning_effort` / `model#variant`）、调用上限与 `prompt_guidance` 的任何改动都属**项目级配置变更**，必须先给出 diff 与预期效果、等用户明确确认后再落盘（2026-10-18 定，见 D-0089）。备份命名统一为 `.pdw\skill-upgrade-<YYYYMMDD>\config.json.bak-<用途>-<YYYYMMDD>`；2026-10-18 之前遗留的两个旧名文件（`config.json.bak-20261018`、`config.json.bak-pre-commandgota`）保留原名、不重命名，只在文档里记明。
+
 已按此固定配置的项目（2026-10-17，均 `1.3.3-local`、`doctor exit 0`）：
 `finquant-hub`、`Vessel_Harness`、`model-infra-kit`、`remote-job-aggregator`。
 
 **换配置的条件**：只在用户明确要求时（换源、换布局、换备份位置等）；换完同步更新本节、各项目的
 `pdw-skill-sync` 块与 `CHANGELOG.md`。
 
-### 7.1 思考深度（effort）口径（2026-10-17）
+### 7.1 思考深度（effort）与角色模型矩阵（2026-10-18 更新）
 
 - **档位由模型自身定义**，本机唯一依据是 TUI 状态文件 `~\.local\state\opencode\model.json#variant`
   （哪个模型支持哪几档、默认第几档，以它为准）；**别照抄别处**（别沿用别的 agent / 别的文档里的档位说法）。
 - 角色里写 **`reasoning_effort`**（如 `"high"`）或 **`model#variant`**（如 `"…flash#max"`）**二选一**，**别同时写**。
-- 2026-10-17 固定的默认：**`roles.review` 钉该模型可用的最高档**——
-  `commandgota/deepseek/deepseek-v4.1-flash`（`finquant-hub`）→ `max`；
-  `workbuddy/deepseek-v4.1-flash`（`Vessel_Harness` / `model-infra-kit` / `remote-job-aggregator`）→ `high`（该模型只到 `high`）。
-- **`scan` / `test-plan` / `implement` / `planner` 保持原状**（host-default 或既有的 `medium`），本口径不涉及。
-- **换档属项目级 config 变更**，按本节口径需**用户明确要求**；改前把 `<项目>\.pdw\config.json` 备份到
-  `<项目>\.pdw\skill-upgrade-<YYYYMMDD>\config.json.bak-effort-<YYYYMMDD>`，改后跑
-  `node <项目>/.agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` 复核。
-- 落地证据（2026-10-17）：上述四处 `review` 已钉档、备份如上，四处 `doctor` 均 `exit 0`。
+- **改任何一项都要先经用户确认**（见 §7 的硬规则）：模型、档位、上限、`prompt_guidance`。
+- 2026-10-18 实测矩阵（三个项目 `scan` / `test-plan` / `review` 同源）：
+
+| 项目 | scan / test-plan | review | review 档位 | implement | planner |
+| --- | --- | --- | --- | --- | --- |
+| finquant-hub | `commandgota/deepseek/deepseek-v4.1-flash` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | host-default（codex，未显式指定模型） | host-default |
+| Vessel_Harness | `commandgota/deepseek/deepseek-v4.1-flash` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | host-default |
+| model-infra-kit | `commandgota/deepseek/deepseek-v4.1-flash` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `gemini-3.8-flash-high` |
+| remote-job-aggregator | `workbuddy/deepseek-v4.1-flash` | `workbuddy/deepseek-v4.1-flash` | `high` | `workbuddy/deepseek-v4.1-flash` | `workbuddy/deepseek-v4.1-flash` |
+
+- **review 一律钉该模型可用的最高档**：`commandgota/deepseek/deepseek-v4.1-flash` → `max`；
+  `workbuddy/deepseek-v4.1-flash` → `high`（该模型只到 `high`——这句只作历史注记，**workbuddy 线路正在退场**，
+  2026-10-18 只剩 `remote-job-aggregator` 在用）。
+- 备份与复核：改前备份到 `.pdw\skill-upgrade-<YYYYMMDD>\config.json.bak-<用途>-<YYYYMMDD>`，改后跑
+  `node <项目>/.agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` 并记进日记。
+- 落地证据：2026-10-17 四处 `review` 钉档（`finquant-hub` `max`，其余 `high`）；**2026-10-18** 经用户确认，
+  `Vessel_Harness` 与 `model-infra-kit` 的 `scan` / `test-plan` / `review` 统一切到
+  `commandgota/deepseek/deepseek-v4.1-flash`（`review` 保持 `max`），备份在各自 `.pdw\skill-upgrade-20261018\`，
+  两家 `doctor` 均 `exit 0`。

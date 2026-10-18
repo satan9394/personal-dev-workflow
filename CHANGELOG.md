@@ -3,6 +3,19 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-18 — Config-change confirmation gate, effort and model matrix refresh
+
+### Rules and documentation
+- **A project-level config change now needs explicit user confirmation**: model, reasoning depth (`reasoning_effort` /
+  `model#variant`), limits and `prompt_guidance` are project settings. Give a diff, wait for confirmation, then write;
+  back up to `.pdw/skill-upgrade-<YYYYMMDD>/config.json.bak-<purpose>-<YYYYMMDD>` first. The rule now ships inside every
+  project's `<!-- pdw-skill-sync -->` block, so a project agent sees it without reading this repository.
+- **`DEPLOYMENT.md` §7.1 refreshed**: `finquant-hub`, `Vessel_Harness` and `model-infra-kit` run `scan` / `test-plan` /
+  `review` on `commandgota/deepseek/deepseek-v4.1-flash` with `review` pinned to `max`; `remote-job-aggregator` is the
+  only one left on `workbuddy/deepseek-v4.1-flash` (`review` = `high`), and the workbuddy line is recorded as retiring.
+  Backup naming unified; the two earlier files keep their old names.
+- **No Skill file changed in this round**; distribution still rolls on `main`, with no tag, Release or npm publish.
+
 ## [main] — 2026-10-17 — Re-cut the `1.3.3-local` package: snapshot guard rails, a bundled updater, origin metadata
 
 ### Skill content (same research version string, new bytes)
