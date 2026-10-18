@@ -177,9 +177,12 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 本技能已从 skills-manager 库移除；dsh 原来的 2.0.0 真副本备份在本仓库
 `.pdw/migrations/dsh-skill-copy-2.0.0-20261017/`（已进回收站）。
 
-**未完成的传播（重要）**：项目级真副本仍停在**上一版**（`1.3.2-local` + 已退场的下游修复），
-尚未刷成本次的 `1.3.3-local`；待刷的四处为 `finquant-hub`、`Vessel_Harness`、`model-infra-kit`、
-`remote-job-aggregator`（研究项目那份是研究侧快照，不动）。刷新方式见步骤 3；刷完各自跑 `doctor` 复核。
+**项目级传播（2026-10-17 晚已完成）**：四处项目副本已刷到 `1.3.3-local`（方式见步骤 3；旧副本各自备份在
+`.pdw/skill-upgrade-20261017/personal-dev-workflow-pre-1.3.3/`），四处 `doctor` 均 `exit 0`、5 角色 ready：
+`finquant-hub`、`Vessel_Harness`、`model-infra-kit`、`remote-job-aggregator`（研究项目那份是研究侧快照，不动）。
+**注意**：`remote-job-aggregator` 当时有任务在跑（`20261018025316-f47696`，running/review，`run.lock` 里 pid 存活），
+且其 `.pdw/tasks` 已从 12 涨到 **21** 个目录——刷新只改了 git 不可见的位置（`.agents/`、`AGENTS.md` 均在其
+`.git/info/exclude` 里），所以没有制造 drift；但**在有任务运行时替换技能副本仍属边界操作**，以后先查 `run.lock`。
 另外丙区里 `tmux-persist`、`utilities`、`agent-risk-guard` 与本技能无关，别顺手改。
 
 项目级真副本（2026-10-17 早些时候已从 1.3.1-local 升级到「上一版 8 文件」，逐文件与当时的库一致，各自 `.pdw/config.json` 未被改动）：
@@ -249,4 +252,28 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 6. 禁止 `npx skills add`（本机与丙区/junction 机制冲突）；本技能的写入链只有两条：**仓库 → 丙区（复制）**与**仓库 → 项目副本（复制）**。
 7. 丙区真身与项目副本出现 `.bak` / 临时文件时先清掉再复制（否则会被一起带进去）。
 8. **丙区是共用位**：改本技能时只动 `~\.agents_four_skills\personal-dev-workflow`，不要碰同目录的 `tmux-persist` / `utilities` / `agent-risk-guard`；**不要建 junction**（oc/dsh 原生注册、cc/agy 按需直读），新增或改名技能只同步名册 `stars-scan\curated\personal-skills.json`。
-8. 只在 `skills/personal-dev-workflow/` 里改 Skill 本体；不放插件、不生成派生副本（`AGENTS.md` 的「产物范围」）。
+9. 只在 `skills/personal-dev-workflow/` 里改 Skill 本体；不放插件、不生成派生副本（`AGENTS.md` 的「产物范围」）。
+
+## 7. 项目级默认配置（2026-10-17 固定，**勿擅改**）
+
+每个长期项目里那份副本的固定形态：
+
+- 位置：`<项目>/.agents/skills/personal-dev-workflow/`，内容 = 源（丙区真身）的 8 文件，**逐字节一致、行尾 LF**；
+- 项目自己的 `.pdw/config.json` **保持不动**（角色/模型/exe 路径属项目）；
+- 项目 `AGENTS.md` 里有 **`<!-- pdw-skill-sync -->` 块**，写明唯一技能源与"更"的执行流程。
+
+**唯一技能源**：`<home>\.agents_four_skills\personal-dev-workflow`。
+
+**用户说「更」/「更新 skill」时**（已逐字写进各项目 `AGENTS.md`）：
+
+1. 逐文件比 `sha256(源)` 与 `sha256(本地副本)`（8 个；缺文件也算差异）；
+2. 无差异 → 只回一句「已是最新（<版本>）」，不改任何文件；
+3. 有差异 → 备份本地副本到 `.pdw/skill-upgrade-<YYYYMMDD>/` → 用源 8 文件整份替换
+   （保留 `agents/ assets/ references/ scripts/` 四层）→ **不动 `.pdw/config.json`** →
+   跑 `node .agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` → 报告版本串与 doctor 结果。
+
+已按此固定配置的项目（2026-10-17，均 `1.3.3-local`、`doctor exit 0`）：
+`finquant-hub`、`Vessel_Harness`、`model-infra-kit`、`remote-job-aggregator`。
+
+**换配置的条件**：只在用户明确要求时（换源、换布局、换备份位置等）；换完同步更新本节、各项目的
+`pdw-skill-sync` 块与 `CHANGELOG.md`。
