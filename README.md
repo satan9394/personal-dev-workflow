@@ -157,7 +157,9 @@ rather than described from memory.
 
 This repo practices what the skill preaches:
 
-- `node scripts/validate-skills.mjs` — name/description-only frontmatter, existing references,
+- `node scripts/validate-skills.mjs` — spec-conformant frontmatter (`name`/`description` plus the
+  spec fields `license`, `compatibility`, `metadata`, `allowed-tools`; the skill's origin lives in
+  `metadata`, and Claude Code-only fields like `argument-hint` are rejected), existing references,
   research version mapping (`SKILL.md` body string vs `pdwSkillVersion`) and matching distribution
   manifests.
 - `node --test scripts/validate-skills.test.mjs` — real validator fixtures for valid packaging,
