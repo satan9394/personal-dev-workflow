@@ -5,7 +5,7 @@ description: "Run cost-aware multi-agent project work with OpenCode/DeepSeek, Co
 
 # Personal Dev Workflow — 可执行的项目协作
 
-版本：1.3.2-local；说明语言：zh-CN。
+版本：1.3.3-local；说明语言：zh-CN。
 
 这是既有 PDW 的项目级升级版：保留契约、验证、交接、有限修复；增加真实 CLI 接力。程序为本 Skill 的 `scripts/pdw.mjs`，以 Skill 的绝对位置调用，不假定当前目录含 scripts。
 
@@ -30,7 +30,7 @@ description: "Run cost-aware multi-agent project work with OpenCode/DeepSeek, Co
 
 确认执行角色的实际模型标识、宿主支持与思考等级，保留用户指定模型。首次使用或切换模型时查其官方选择/提示指导及宿主接口；记录来源与核对日期到任务准备材料。有效且仍适用的记录可复用，不每次重复联网。无法识别宿主默认模型时不猜测其特性。
 
-协调者将简短、适用于该模型和当前任务的提示指导写入角色配置 `prompt_guidance`；Codex 可另设 `reasoning_effort`。用法与限制见 [模型交接配置](references/runtime.md#模型交接配置)。强模型以目标、约束、证据和自主空间为主；清晰小任务缩小交接范围。不要机械增加提示长度、角色数或最高思考等级，不要求公开内部思维链。
+协调者将简短、适用于该模型和当前任务的提示指导写入角色配置 `prompt_guidance`；Codex 与 OpenCode 可另设 `reasoning_effort`。OpenCode TUI 的 `/effort` 选择模型变体，协调者应核对实际模型的 variants，不能凭 Flash 名称断言不支持思考。用法与限制见 [模型交接配置](references/runtime.md#模型交接配置)。强模型以目标、约束、证据和自主空间为主；清晰小任务缩小交接范围。不要机械增加提示长度、角色数或最高思考等级，不要求公开内部思维链。
 
 运行器只传递已配置的模型指导和参数，不自动联网选模型，也不证明提供方最终采用了请求设置。模型改变后重新核对指导与参数；未知模型沿用通用契约，不套用其他模型结论。独立复核按原始需求与验收检验结果，不能只确认是否遵循计划。
 

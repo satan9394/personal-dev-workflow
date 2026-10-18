@@ -4,10 +4,10 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { findExecutable, invocation, parseResult, resultSchema, modelPromptContext, validateProfile } from './drivers.mjs';
+import { findExecutable, invocation, parseResult, resultSchema, modelPromptContext, validateProfile, modelSettings } from './drivers.mjs';
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const version = '1.3.2-local';
+const version = '1.3.3-local';
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -15,12 +15,20 @@ const inside = (root, file) => file === root || file.startsWith(root + path.sep)
 const stamp = () => new Date().toISOString();
 const ignored = new Set(['.git', '.pdw', 'node_modules', '.next', '.turbo', '__pycache__']);
 
-function write(file, value) {
+export function write(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (fs.existsSync(file) && fs.lstatSync(file).isSymbolicLink()) throw new Error(`Refusing symlink output: ${file}`);
   const temp = `${file}.${process.pid}.${crypto.randomBytes(3).toString('hex')}.tmp`;
   fs.writeFileSync(temp, typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n');
-  fs.renameSync(temp, file);
+  // Windows readers can briefly deny replacement; keep the original intact and bound retries.
+  const deadline = Date.now() + 1000;
+  for (;;) {
+    try { fs.renameSync(temp, file); break; }
+    catch (error) {
+      if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || Date.now() >= deadline) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(20, deadline - Date.now()));
+    }
+  }
 }
 
 function managedRoot(project) {
@@ -134,12 +142,21 @@ function detectCheapModel() {
   return null;
 }
 
+export function withSavedOpenCodeVariant(model, file = path.join(process.env.XDG_STATE_HOME ?? path.join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.local', 'state'), 'opencode', 'model.json')) {
+  if (!model || model.includes('#')) return model;
+  try {
+    const variant = read(file).variant?.[model];
+    if (typeof variant === 'string' && variant !== 'default' && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(variant)) return `${model}#${variant}`;
+  } catch { /* No saved TUI choice: leave the model unchanged; never invent an effort. */ }
+  return model;
+}
+
 function initialize(project) {
   const { root, store } = managedRoot(project);
   const configFile = path.join(store, 'config.json');
   fs.mkdirSync(path.join(store, 'tasks'), { recursive: true });
   if (!fs.existsSync(configFile)) {
-    const cheap = { backend: 'opencode', executable: findExecutable('opencode'), model: detectCheapModel() };
+    const cheap = { backend: 'opencode', executable: findExecutable('opencode'), model: withSavedOpenCodeVariant(detectCheapModel()) };
     write(configFile, {
       schema_version: 1,
       roles: { scan: cheap, 'test-plan': cheap, implement: { backend: 'codex', executable: findExecutable('codex'), model: null }, review: cheap,
@@ -354,7 +371,7 @@ export async function runTask(root, id, resume = false) {
     const inputs = { prompt: path.join(directory, 'prompt.md'), schema: path.join(directory, 'schema.json'), final: path.join(directory, 'final.json') };
     write(inputs.prompt, promptFor(role, task, state, files, before, profile)); write(inputs.schema, resultSchema);
     const native = invocation(profile, role, inputs);
-    const attempt = { role, name, directory, started_at: stamp(), model: profile.model ?? 'host-default', backend: profile.backend, reasoning_effort: profile.reasoning_effort ?? 'host-default', prompt_guidance: profile.prompt_guidance ?? null, artifact_before: before.fingerprint, status: 'running' };
+    const attempt = { role, name, directory, started_at: stamp(), model: profile.model ?? 'host-default', backend: profile.backend, ...modelSettings(profile), prompt_guidance: profile.prompt_guidance ?? null, artifact_before: before.fingerprint, status: 'running' };
     state.calls_used++; state.attempts.push(attempt); context.save();
     console.log(`[${state.calls_used}/${config.limits.max_cli_calls}] ${name} -> ${profile.backend} (${attempt.model})`);
     const remaining = Math.max(1, Math.floor(config.limits.task_timeout_seconds - state.elapsed_ms / 1000));
@@ -454,6 +471,7 @@ function doctor(root) {
     const binary = profile.executable && fs.existsSync(profile.executable) && (process.platform !== 'win32' || /\.exe$/i.test(profile.executable));
     const result = binary ? spawnSync(profile.executable, ['--version'], { encoding: 'utf8', timeout: 15000, windowsHide: true }) : null;
     return { role, backend: profile.backend, executable: profile.executable, model: modelExplicit ? profile.model : 'host-default',
+      ...(!configurationError ? modelSettings(profile) : {}),
       available: Boolean(binary && result.status === 0), version: result?.stdout?.trim() ?? null,
       model_explicit: modelExplicit, model_source: modelExplicit ? 'explicit' : 'host-default',
       ready: Boolean(binary && result.status === 0 && modelReady && !configurationError), configuration_error: configurationError };

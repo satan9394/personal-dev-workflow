@@ -39,5 +39,5 @@
   "engines": {
     "node": ">=18"
   },
-  "pdwSkillVersion": "1.3.2-local"
+  "pdwSkillVersion": "1.3.3-local"
 }

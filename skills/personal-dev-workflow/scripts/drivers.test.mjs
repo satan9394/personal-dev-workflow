@@ -1,81 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { invocation, validateProfile, parseResult } from './drivers.mjs';
-
-const roleResult = { verdict: 'pass', summary: 'Fixture review', findings: [], acceptance: [{ id: 'AC1', status: 'pass', evidence: 'fixture' }] };
-test('role JSON recovery accepts surrounding prose and trailing text', () => {
-  assert.deepEqual(parseResult(`Review follows:\n${JSON.stringify(roleResult)}\nEnd of review.`), roleResult);
-});
-test('role JSON recovery checks an earlier fence when the last fence is unrelated', () => {
-  assert.deepEqual(parseResult('```json\n' + JSON.stringify(roleResult) + '\n```\n```json\n{"note":"later"}\n```'), roleResult);
-});
-test('balanced JSON recovery ignores braces and escaped quotes in strings', () => {
-  const value = { ...roleResult, summary: 'Reviewed {value}, "quoted" and \\path' };
-  assert.deepEqual(parseResult('Response: ' + JSON.stringify(value) + ' Finished.'), value);
-});
-test('recovered JSON still rejects malformed acceptance and findings', () => {
-  for (const value of [{ ...roleResult, acceptance: [{ id: 'AC1', status: 'pass' }] }, { ...roleResult, findings: [{ id: 'F1', severity: 'unknown' }] }]) {
-    assert.throws(() => parseResult('Response: ' + JSON.stringify(value) + ' End.'), /No valid final JSON/);
-  }
-});
-test('a tool argument is not a final role result', () => {
-  assert.throws(() => parseResult(JSON.stringify({ type: 'tool_call', arguments: roleResult })), /No valid final JSON/);
-});
-test('multi-line log recovery never promotes nested tool arguments', () => {
-  const log = [JSON.stringify({ type: 'tool_call', arguments: roleResult }), JSON.stringify({ type: 'done' })].join('\n');
-  assert.throws(() => parseResult(log), /No valid final JSON/);
-});
-test('prose around a pretty-printed tool envelope cannot promote nested arguments', () => {
-  const log = 'Starting CLI\n' + JSON.stringify({ type: 'tool_call', arguments: roleResult }, null, 2) + '\nDone';
-  assert.throws(() => parseResult(log), /No valid final JSON/);
-});
-test('prose around arrays or unfinished envelopes cannot promote nested results', () => {
-  for (const log of ['Result: [' + JSON.stringify(roleResult) + '] Done', 'Result: {"tool":' + JSON.stringify(roleResult)]) {
-    assert.throws(() => parseResult(log), /No valid final JSON/);
-  }
-});
-test('supported final text events remain recoverable beside tool events', () => {
-  const value = { ...roleResult, summary: 'Actual final review' };
-  const log = [JSON.stringify({ type: 'tool_call', arguments: roleResult }), JSON.stringify({ type: 'text', part: { text: 'Result: ' + JSON.stringify(value) + ' End.' } })].join('\n');
-  assert.deepEqual(parseResult(log), value);
-});
-test('tool events after a final failure cannot replace it with a pass', () => {
-  const value = { ...roleResult, verdict: 'fail', summary: 'Actual final failure' };
-  const log = [JSON.stringify({ type: 'text', part: { text: JSON.stringify(value) } }), JSON.stringify({ type: 'tool_call', arguments: roleResult })].join('\n');
-  assert.deepEqual(parseResult(log), value);
-});
-test('the dedicated final file takes precedence over stdout text', () => {
-  const value = { ...roleResult, verdict: 'fail', summary: 'Dedicated final response' };
-  const file = write(path.join(evidence, 'dedicated-final.json'), JSON.stringify(value));
-  assert.deepEqual(parseResult(JSON.stringify(roleResult), file), value);
-});
-test('malformed final file rejects instead of falling back to a stdout pass', () => {
-  const file = write(path.join(evidence, 'malformed-final.json'), 'Not a final JSON result');
-  assert.throws(() => parseResult(JSON.stringify(roleResult), file), /No valid final JSON/);
-});
-test('malformed last text never revives an intermediate verdict', () => {
-  const log = [JSON.stringify({ type: 'text', part: { text: JSON.stringify(roleResult) } }), JSON.stringify({ type: 'text', part: { text: 'Final response is malformed' } })].join('\n');
-  assert.throws(() => parseResult(log), /No valid final JSON/);
-});
-test('tool result and structured-output fields are not response envelopes', () => {
-  for (const event of [{ type: 'tool_result', result: roleResult }, { type: 'tool_call', structured_output: roleResult }]) {
-    assert.throws(() => parseResult(JSON.stringify(event)), /No valid final JSON/);
-  }
-});
-test('latest result envelope overrides prior text and stale joined fragments', () => {
-  const value = { ...roleResult, verdict: 'fail', summary: 'Final result envelope' };
-  const log = [JSON.stringify({ type: 'text', part: { text: JSON.stringify(roleResult) } }), JSON.stringify({ type: 'result', structured_output: value })].join('\n');
-  assert.deepEqual(parseResult(log), value);
-});
-test('unsupported JSON delta fragments are not joined into an acceptance verdict', () => {
-  const value = JSON.stringify(roleResult), cut = Math.floor(value.length / 2);
-  const log = [value.slice(0, cut), value.slice(cut)].map(text => JSON.stringify({ type: 'text', part: { text } })).join('\n');
-  assert.throws(() => parseResult(log), /No valid final JSON/);
-});
+import { invocation, validateProfile, modelPromptContext } from './drivers.mjs';
+import { write as atomicWrite } from './pdw.mjs';
 
 const project = fileURLToPath(new URL(fs.existsSync(new URL('../../../package.json', import.meta.url)) ? '../../../' : '../../../../', import.meta.url));
 const evidence = path.join(project, '.pdw', 'test-runs', `drivers-${Date.now()}-${process.pid}`);
@@ -108,6 +38,40 @@ function npmCodex(fixture) {
   return root;
 }
 const windows = { skip: process.platform !== 'win32' || !triple };
+test('Windows atomic writes tolerate a short reader lock but fail on a persistent lock', windows, async () => {
+  const script = write(path.join(evidence, 'reader-lock.ps1'), `param($Target, $Ready, [int]$Hold)
+$stream = [IO.File]::Open($Target, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+try { [IO.File]::WriteAllText($Ready, 'locked'); Start-Sleep -Milliseconds $Hold } finally { $stream.Dispose() }
+`);
+  for (const [name, hold, succeeds] of [['transient', 250, true], ['persistent', 4000, false]]) {
+    const target = write(path.join(evidence, `${name}.json`), 'original');
+    const ready = path.join(evidence, `${name}.ready`);
+    const child = spawn(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-File', script, target, ready, String(hold)], { windowsHide: true, stdio: 'ignore' });
+    const done = new Promise(resolve => child.once('close', resolve));
+    const deadline = Date.now() + 10000;
+    while (!fs.existsSync(ready) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+    try {
+      assert.ok(fs.existsSync(ready), 'reader must actually hold the file lock');
+      if (succeeds) { atomicWrite(target, 'updated'); assert.equal(fs.readFileSync(target, 'utf8'), 'updated'); }
+      else { assert.throws(() => atomicWrite(target, 'updated'), error => ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)); assert.equal(fs.readFileSync(target, 'utf8'), 'original'); }
+    } finally { await done; }
+  }
+});
+
+test('OpenCode effort selects the same explicit variant as TUI /effort', () => {
+  const profile = { backend: 'opencode', executable: process.execPath, args: [mock], model: 'workbuddy/deepseek-v4.1-flash', reasoning_effort: 'high' };
+  const run = invocation(profile, 'scan', files);
+  assert.equal(run.args[run.args.indexOf('--model') + 1], 'workbuddy/deepseek-v4.1-flash#high');
+  assert.ok(!run.args.includes('--config'));
+  assert.match(modelPromptContext(profile), /deepseek-v4\.1-flash#high/);
+  for (const bad of [
+    { ...profile, model: undefined },
+    { ...profile, reasoning_effort: 'invented' },
+    { ...profile, model: 'workbuddy/deepseek-v4.1-flash#low' },
+    { ...profile, backend: 'agy' },
+  ]) assert.throws(() => validateProfile(bad), /reasoning_effort/);
+  assert.doesNotThrow(() => validateProfile({ ...profile, model: 'workbuddy/deepseek-v4.1-flash#high', reasoning_effort: undefined }));
+});
 test('discovery prefers a PATH native executable over an earlier npm shim', windows, () => {
   const fixture = discoveryFixture('native-preference'), root = npmCodex(fixture);
   write(path.join(root, 'vendor', triple, 'bin', 'codex.exe'));
@@ -168,7 +132,7 @@ const forbidden = [
   ['--full-auto'], ['--auto'], ['--yolo'], ['--approve-for-me'], ['--dangerously-bypass-approvals-and-sandbox'], ['--dangerously-bypass-hook-trust'],
   ['--permissions', 'all'], ['--permission-mode=all'], ['--mode', 'accept-edits'],
   ['--model', 'different'], ['--model=different'], ['-m', 'different'], ['-mdifferent'],
-  ['--reasoning-effort', 'low'], ['--reasoning-effort=low'], ['--effort=low'], ['--oss'], ['--local-provider=other'], ['--enable', 'feature'], ['--disable=feature'], ['--worktree'], ['--'],
+  ['--reasoning-effort', 'low'], ['--reasoning-effort=low'], ['--effort=low'], ['--variant', 'low'], ['--variant=low'], ['--oss'], ['--local-provider=other'], ['--enable', 'feature'], ['--disable=feature'], ['--worktree'], ['--'],
 ];
 for (const backend of ['codex', 'opencode', 'agy']) {
   test(`${backend} rejects working-root, policy, config and model prefix overrides`, () => {

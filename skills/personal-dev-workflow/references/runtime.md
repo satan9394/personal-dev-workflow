@@ -1,4 +1,4 @@
-# PDW 1.3.2 本地运行工具
+# PDW 1.3.3 本地运行工具
 
 仅依赖 Node.js 18+ 与已经安装、登录的 CLI；代码使用 Node 标准库，沿用 PDW 的 JavaScript 脚本形式，不安装 TypeScript/Next.js 或新依赖。
 
@@ -82,7 +82,21 @@ Codex 角色还可设 `reasoning_effort`，通过 `--config model_reasoning_effo
 }
 ```
 
-这不是默认模型切换。只有账户/宿主确实支持该模型与等级时才使用。程序检查字段格式，拒绝给非 Codex 后端设置 reasoning_effort；认可等级名称不等于每个模型都支持。未配置时保留宿主默认，不自动提高等级或换模型。请求模型、等级与指导写入 attempt 记录，不把请求值当作提供方采用证明。原始前缀 args 保持兼容，不混入与显式 model/effort 冲突的覆盖。
+OpenCode TUI 的 `/effort`（`/thinking`、`/variants`）选择模型 variant。已核对本机 2.0.32：后台 `run` 使用 `--model provider/model#variant`。PDW 支持以下角色配置，转换为 `--model workbuddy/deepseek-v4.1-flash#high`，不发送 Codex 的 `--config`：
+
+```json
+{ "backend": "opencode", "model": "workbuddy/deepseek-v4.1-flash", "reasoning_effort": "high" }
+```
+
+也可直接写 `model: "workbuddy/deepseek-v4.1-flash#high"`，自定义 variant 使用此形式；不能同时再设置 reasoning_effort。不要给其他 OpenCode 版本猜测参数：先核对其 run --help，旧版可能使用不同入口。本机模型接口确认该模型的 low/medium/high 分别映射为 reasoningEffort 同名值，不能由 Flash 后缀推断能力。
+
+2026-10-17 核对官方 v2.0.32 源码：[TUI effort 别名](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/tui/src/app.tsx#L950)、[后台模型变体解析](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/cli/src/run/run.ts#L176)。TUI 和 run 属于同一安装的不同入口；界面能切换不意味着已有 PDW 配置自动继承。
+
+新建配置时，init 对识别到的模型读取 OpenCode TUI 状态目录 model.json 的 variant 映射，将该模型已保存的变体固定到项目配置。状态目录为 XDG_STATE_HOME/opencode，默认 ~/.local/state/opencode。已有配置、显式 #variant 和缺失状态均不会被覆盖；之后 TUI 改选不会自动改变已有 PDW 项目。升级旧项目时由协调者核对该项目是否有活动任务，备份配置后只调整相关角色，不重置任务或预算。
+
+这不是默认模型切换。只有账户/宿主确实支持该模型与等级时才使用。程序检查字段格式，reasoning_effort 仅支持 Codex/OpenCode；认可等级名称不等于每个模型都支持。未配置时保留宿主默认，不自动提高等级或换模型。doctor、prompt 与 attempt 记录 effective_model、reasoning_effort 和 OpenCode variant，它们是请求设置，不是提供方采用证明；doctor 不执行认证或真实请求。原始前缀 args 不得覆盖显式 model/effort。
+
+核对 TUI 与模型时只提取模型 ID、variants 与对应的 effort 字段。OpenCode 2.0 的 api model.list 原始返回包含认证设置，禁止直接打印或保存整个响应。
 
 2026-10-16 核对来源：[OpenAI 模型选择](https://developers.openai.com/api/docs/guides/model-selection)、[模型与提示指导](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.1-sol)、[减少过度提示](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)、[Codex 单次运行配置](https://learn.chatgpt.com/docs/developer-settings)。运行器不自动检索这些页面，也不自动生成最佳提示；这些判断由使用 Skill 的协调者完成，效果仍须真实任务验证。
 
@@ -101,8 +115,6 @@ ponytail: 当前程序保持固定阶段及禁止嵌套调度，不增加通用�
 唯一任务运行态位于 `.pdw/tasks/<id>/state.json`；contract.json 为冻结契约，baseline.json 为起始文件哈希。不再把旧 run-state 计数当作这套新调度器的状态源。
 
 角色 stdout/stderr、最终结构化结果与机器检查分别保存。检查退出码非零不能被 Agent 的 pass 覆盖；复核必须列出所有验收 ID、pass 状态和具体证据。修复后重跑检查和独立复核，最多一次。
-
-输出解析仅接受完整角色 JSON、最新的 `type: text` 完整文本或 `type: result` 最终结果封套；不拼接未知增量协议、不从工具参数取验收结果，也不在末条响应无效时回退旧 verdict。Codex 的专用最终文件存在时以该文件为准，无效则失败；正文或代码围栏可包裹完整 JSON。其他输出协议须单独适配并做真实小任务验证。
 
 源码指纹在普通 Git 项目使用 tracked/untracked 非 ignored 文件，并额外遍历显式任务 scope；scope 落在忽略规则下时，覆盖其最上层被忽略的祖先及同目录源文件，以便检测越界兄弟文件。项目根被 Git 忽略、Git 文件列表为空、scope 为整个项目或非 Git 项目时改用文件系统遍历，不能静默接受空的 Git 列表。status/handoff 的 snapshot_coverage 给出覆盖方式、文件数、强制覆盖根与保留排除目录。
 

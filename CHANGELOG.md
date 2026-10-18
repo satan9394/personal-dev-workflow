@@ -3,6 +3,37 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-17 — Import research 1.3.3, switch distribution to the shared personal-skills area, adopt a rolling release policy
+
+### Changed
+- **The Skill now follows the upstream research package verbatim** (`1.3.3-local`, built in
+  `人机协作开发工作流研究/artifacts/releases/1.3.3-local`): `SKILL.md`, `references/runtime.md`,
+  `scripts/pdw.mjs`, `scripts/drivers.mjs`, `scripts/drivers.test.mjs`, `scripts/pdw.test.mjs` were replaced by the
+  package content. `pdwSkillVersion` `1.3.2-local` → `1.3.3-local`. Brings upstream's OpenCode TUI effort handling
+  (`/effort`, `/thinking`, model variants) and the state-write lock retry.
+- **Only the repository-layout adaptations are kept**: one path probe each in `scripts/pdw.test.mjs` and
+  `scripts/drivers.test.mjs` (3 levels in-repo vs 4 levels installed — without it the tests write evidence into
+  `<projects-root>\.pdw`), plus LF line endings (the packaged `scripts/pdw.mjs` is CRLF).
+- **Downstream repairs that the upstream package does not carry were dropped** (per the "upstream package is the
+  baseline" instruction): the role-JSON recovery in `drivers.mjs` (`jsonValues`, fences, balanced braces), its
+  regression cases, and the final-response wording paragraph in `references/runtime.md`. The previous 8 files are
+  kept at `.pdw/skill-adaptation-20261017/pre-package-baseline/` for traceability; if those behaviours are wanted
+  they belong upstream, not as a local patch.
+- **Release policy replaced: rolling `main`.** No more tags, GitHub Releases or npm publishing.
+  `package.json.version` stays at `2.0.1` and is no longer bumped; see `RELEASING.md`.
+- Distribution moved to a shared personal-skills area on the author's machine (details in `DEPLOYMENT.md`);
+  the skill was removed from the skills-manager library, so `skills update` / `skills deploy` no longer apply to it.
+
+### Fixed
+- Test runs no longer create `.pdw` in the parent of the repository (the stray directory was recycled).
+
+## Unreleased
+
+- Support OpenCode reasoning effort through explicit model variants, matching TUI `/effort` on 2.0.32.
+- Preserve the selected model's saved TUI variant when initializing a new project; existing configurations remain unchanged.
+- Record the effective model and variant in doctor, prompts and attempt evidence; reject conflicting settings.
+- Retry transient Windows reader locks during atomic state replacement for at most one second; retain the original and fail on persistent errors.
+
 ## [2.0.1] — 2026-10-16 — Research 1.3.2 guard repairs and Skill normalization
 
 ### Fixed

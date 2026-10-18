@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseResult, invocation, modelPromptContext } from './drivers.mjs';
-import { snapshot } from './pdw.mjs';
+import { snapshot, withSavedOpenCodeVariant } from './pdw.mjs';
 
 const runtime = fileURLToPath(new URL('./pdw.mjs', import.meta.url));
 const project = path.resolve(path.dirname(runtime), fs.existsSync(new URL('../../../package.json', import.meta.url)) ? '../../..' : '../../../..');
@@ -21,6 +21,7 @@ const index=args.indexOf('--file');
 const prompt=index>=0?fs.readFileSync(args[index+1],'utf8'):fs.readFileSync(0,'utf8');
 const role=/You are the (.+?) for/.exec(prompt)?.[1];
 if(mode==='codex-settings' && (args[args.indexOf('--model')+1]!=='fixture/codex' || args[args.indexOf('--config')+1]!=='model_reasoning_effort="medium"' || !prompt.includes('Keep the public API stable; verify persistence.')))process.exit(43);
+if(mode==='oc-settings' && (args[args.indexOf('--model')+1]!=='fixture/deepseek#high' || !prompt.includes('fixture/deepseek#high')))process.exit(44);
 if(mode==='hang'){
  const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});
  fs.appendFileSync('.pdw/fixture-child-pids.txt',child.pid+'\\n');
@@ -174,10 +175,38 @@ await test('Codex receives the selected model, effort and model-specific task gu
   assert.equal(t.state().status, 'accepted_local');
   assert.equal(t.state().attempts.find(a => a.role === 'implement').reasoning_effort, 'medium');
 });
+await test('OpenCode effort reaches all role invocations, doctor and attempt evidence', () => {
+  const t = setup('oc-effort');
+  for (const profile of Object.values(t.config.roles)) {
+    profile.args = [mock, 'oc-settings']; profile.reasoning_effort = 'high';
+  }
+  fs.writeFileSync(path.join(t.root, '.pdw/config.json'), JSON.stringify(t.config));
+  const report = JSON.parse(command(t.root, ['doctor']).stdout);
+  assert.equal(report.roles.find(r => r.role === 'scan').effective_model, 'fixture/deepseek#high');
+  assert.equal(report.roles.find(r => r.role === 'review').reasoning_effort, 'high');
+  command(t.root, ['run', t.id]);
+  assert.equal(t.state().status, 'accepted_local');
+  for (const attempt of t.state().attempts) {
+    assert.equal(attempt.effective_model, 'fixture/deepseek#high');
+    assert.equal(attempt.variant, 'high');
+  }
+});
+await test('new initialization copies only the exact models saved TUI variant', () => {
+  const file = path.join(evidence, 'tui-model.json');
+  fs.writeFileSync(file, JSON.stringify({ variant: { 'fixture/deepseek': 'high', 'fixture/custom': 'custom-effort', 'fixture/default': 'default' } }));
+  assert.equal(withSavedOpenCodeVariant('fixture/deepseek', file), 'fixture/deepseek#high');
+  assert.equal(withSavedOpenCodeVariant('fixture/deepseek#low', file), 'fixture/deepseek#low');
+  assert.equal(withSavedOpenCodeVariant('fixture/custom', file), 'fixture/custom#custom-effort');
+  assert.equal(withSavedOpenCodeVariant('fixture/default', file), 'fixture/default');
+  assert.equal(withSavedOpenCodeVariant('other/deepseek', file), 'other/deepseek');
+  assert.equal(withSavedOpenCodeVariant(null, file), null);
+  fs.writeFileSync(file, '{broken');
+  assert.equal(withSavedOpenCodeVariant('fixture/deepseek', file), 'fixture/deepseek');
+});
 await test('ambiguous model-specific settings and unsupported effort backends are rejected', () => {
   assert.throws(() => modelPromptContext({ backend: 'codex', prompt_guidance: 'model-specific' }), /explicit model/);
   for (const profile of [
-    { backend: 'opencode', model: 'fixture/model', reasoning_effort: 'medium' },
+    { backend: 'agy', model: 'fixture/model', reasoning_effort: 'medium' },
     { backend: 'codex', model: 'fixture/model', reasoning_effort: 'invented' },
     { backend: 'codex', reasoning_effort: 'medium' },
   ]) assert.throws(() => invocation(profile, 'implement', {}), /reasoning_effort requires/);
