@@ -4,12 +4,18 @@
 > 开工顺序：先读仓库根 `AGENTS.md`（治理规则）→ 再读本文件 → 跑一遍文末「开工自检」。
 > 本文件只记录事实。2026-10-17 晚状态：那批未提交改动**已由两次提交收口并推送到 `origin/main`**，工作区干净（见第 4 节，已从"待办"变为"已完成"）。
 > 同日晚还做了一轮"落位与分发"专项（把 skill 铺到四个 agent、升级三份项目副本、给 remote-job-aggregator 首次装入），见 §2.7；本文件与之相关的段落已同步刷新。
+>
+> **口径更新（2026-10-17 更晚，本文件写就之后）**：使用位已由"skills-manager 库 + Junction"改为**丙区读取位**
+> `~\.agents_four_skills\personal-dev-workflow`（GitHub `main` 的本地镜像；oc/dsh 原生注册、cc/agy 按需直读、**不用 junction**、
+> Codex 不读 skill），技能内容为 **`1.3.3-local`**（上游研究包，见 `CHANGELOG.md`），发布口径为 **`main` 滚动、不发版本**
+> （见 `RELEASING.md`）。因此本文件 §2.5、§2.7、§3.2、§4、§5 里"库 / Junction / 1.3.2-local / 发 `v2.0.1`"等表述
+> 属当日记录，现行口径一律以 `DEPLOYMENT.md` 与 `AGENTS.md` 为准。
 
 ## 1. 一句话现状
 
-仓库现在**只产出 Skill**（v2 时代线，发布号 `2.0.1` / 研究版 `1.3.2-local`），位于
+仓库现在**只产出 Skill**（v2 时代线，发布号 `2.0.1` / 研究版 `1.3.3-local`），位于
 `<repo>`；插件、派生副本、npm 发布路径都已移除，v1.x 遗留整批归档在
-`archive/`；agent 实际读的是 skills-manager 库里那份，经 `~/.claude/skills/personal-dev-workflow` 的 Junction 提供。
+`archive/`；agent 实际读的是丙区读取位 `~\.agents_four_skills\personal-dev-workflow`（GitHub `main` 的本地镜像，**无 junction**）。
 
 ## 2. 本会话做了什么（按主题）
 
@@ -89,11 +95,11 @@ personal-dev-workflow/
 
 ### 3.2 版本
 
-- `package.json.version` = **2.0.1**（发布号）；`pdwSkillVersion` = **1.3.2-local**。
+- `package.json.version` = **2.0.1**（发布号）；`pdwSkillVersion` = **1.3.3-local**（现行；下表与 §3.4 写就时为 `1.3.2-local`）。
 - Skill frontmatter **只有 `name` + `description`**（skill-creator 规则）；正文写研究版。
 - 校验器规则：源版本比 `pdwSkillVersion`、发布号比 `package.json`。
 
-### 3.3 Git
+### 3.3 Git（本文件写就时）
 
 - `HEAD = c22965e`（2026-10-17 晚已推送），与 `origin/main` **同步（0/0）**；分支只有 `main`；无 stash。
 - 工作区**干净**（`git status --porcelain` 无输出）：那批 78 项（`-uall` 118 项）未提交改动已由 `67b13ca`（`build!`）与 `c22965e`（`docs`）两次提交收口并推送；`git status` 不再列任何未跟踪顶层项。
@@ -109,6 +115,8 @@ personal-dev-workflow/
 | `node archive/tools/run-tests.mjs` | 42 通过 / 1 条件跳过 / 0 失败 |
 
 > fixture 通过 ≠ 真机登录/供应商路由已验证。
+> 上表是**本文件写就时**的绿（内容 `1.3.2-local`）；现行 `1.3.3-local` 的验收记录见 `CHANGELOG.md` 的 `[main]` 条目
+> （`pdw.test` 34 通过、`run-tests` 42 通过 + 1 条件跳过）。
 
 ## 4. 那批改动怎么收（**已完成 2026-10-17 晚**）
 
@@ -169,7 +177,8 @@ node --test scripts/validate-skills.test.mjs
 node --test skills/personal-dev-workflow/scripts/drivers.test.mjs
 node skills/personal-dev-workflow/scripts/pdw.test.mjs
 node archive/tools/run-tests.mjs
-& "$env:USERPROFILE\.skills-manager\bin\skills-manager-cli.exe" skills status personal-dev-workflow
+& "$env:USERPROFILE\.skills-manager\bin\skills-manager-cli.exe" skills status personal-dev-workflow  # 已不适用（本技能不在库中，返回空）
+Select-String "$env:USERPROFILE\.config\opencode\opencode.json" -Pattern agents_four_skills          # 现行：丙区原生注册点
 ```
 
 若 `validate-skills.test` / `drivers.test` 报错，先看是不是有人把 `archive/` 里的东西搬回顶层（`AGENTS.md` 明确要求留在 `archive/`）。

@@ -19,14 +19,13 @@ planning when a task needs it.
 
 ## Current version: 2.0.1
 
-This working tree prepares 2.0.1 locally; remote installation still follows the published Git state.
-
-The distribution now imports research Skill **1.3.2-local**, retaining the committed role-JSON recovery
-fix from `0e06aea`. The distribution version (`package.json`) stays on the 2.x line; `pdwSkillVersion`
-records the research/runtime version without adding fields to Skill frontmatter. **This repository ships
+The distribution ships on a rolling `main` branch: no tags, no GitHub Releases, no npm publishing
+(see [`RELEASING.md`](RELEASING.md)). The Skill body follows the upstream research package
+**1.3.3-local**; `pdwSkillVersion` records the research/runtime version and the body's version strings
+follow it, while `package.json.version` stays at `2.0.1` and is not bumped. **This repository ships
 the Skill only** — the DSH plugin bundle and the generated copies were removed on 2026-10-16.
 
-This update fixes ignored-root and explicit ignored-scope snapshots, truthful doctor model flags,
+The current Skill fixes ignored-root and explicit ignored-scope snapshots, truthful doctor model flags,
 Windows npm Codex native discovery, unsafe CLI prefixes and failed-coverage finalization. Coverage
 is visible in status/handoff; it remains post-run detection, not a filesystem sandbox. Doctor checks
 binary/configuration readiness; authentication and provider routing require a small real task.
@@ -67,6 +66,14 @@ npx skills add satan9394/personal-dev-workflow
 | Manual copy (universal) | copy `skills/personal-dev-workflow/` into `<project>/.agents/skills/` — discovered by Codex, OpenCode, DSH and Antigravity |
 | Manual copy (Claude Code) | copy `skills/personal-dev-workflow/` into `~/.claude/skills/` or `<project>/.claude/skills/` |
 | Into an existing project | `node <skill>/scripts/pdw.mjs install --project <path>` — refuses to overwrite an existing skill of the same name |
+
+On the author's machine the Skill is **not** installed through `npx skills add`. The canonical copy is
+`skills/personal-dev-workflow/` in this repository, published to GitHub `main`, mirrored into the shared
+personal-skills area `~/.agents_four_skills/personal-dev-workflow` (the single reading location for
+OpenCode and DeepSeek Harness — registered natively by `opencode.json#skills` and
+`skill-filesystem.customSkillDirs` — with Claude Code and Antigravity reading `<name>/SKILL.md` on demand;
+Codex does not read skills), and copied from there into each long-lived project's
+`.agents/skills/personal-dev-workflow/`. See [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ## Driving it
 
@@ -121,7 +128,7 @@ Minimal contract (fields are documented in [`references/runtime.md`](skills/pers
 
 ```
 personal-dev-workflow/
-├── skills/personal-dev-workflow/      # THE skill (research 1.3.2-local): SKILL.md + references/runtime.md
+├── skills/personal-dev-workflow/      # THE skill (research 1.3.3-local): SKILL.md + references/runtime.md
 │                                      #   + agents/openai.yaml + assets/audit-task.json
 │                                      #   + scripts/{pdw.mjs, drivers.mjs, pdw.test.mjs, drivers.test.mjs}
 ├── scripts/validate-skills.mjs        # frontmatter + reference + version-consistency checks
@@ -151,12 +158,13 @@ rather than described from memory.
 This repo practices what the skill preaches:
 
 - `node scripts/validate-skills.mjs` — name/description-only frontmatter, existing references,
-  research version mapping, matching distribution manifests, and byte-identical generated copies.
+  research version mapping (`SKILL.md` body string vs `pdwSkillVersion`) and matching distribution
+  manifests.
 - `node --test scripts/validate-skills.test.mjs` — real validator fixtures for valid packaging,
-  rejected metadata/version drift, fragment links and stale copies.
+  rejected metadata/version drift and fragment links.
 - `node --test skills/personal-dev-workflow/scripts/drivers.test.mjs` — native discovery, profile
   policies and the retained role-JSON recovery patch, including malformed-output rejection.
-- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 32 fixture orchestration cases,
+- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 34 fixture orchestration cases,
   including ignored Git roots/scope, evidence freshness, budgets, locks, cancellation and failure
   reporting. Evidence stays in this checkout's `.pdw/test-runs/` (or the installed project's `.pdw/`).
   These are real local fixture processes, not live provider verification.
@@ -171,8 +179,9 @@ This repo practices what the skill preaches:
 
 ## Releasing
 
-Roughly **every 15 days**, or skipped when nothing substantial changed. Every release summarises the
-changes since the previous tag; see [`RELEASING.md`](RELEASING.md).
+There are no versioned releases: the repository rolls on **`main`** (no tags, no GitHub Releases, no
+npm publish). "Releasing" means pushing to `main`; the steps and the current policy are in
+[`RELEASING.md`](RELEASING.md).
 
 ## Sources
 
