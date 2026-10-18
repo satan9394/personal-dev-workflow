@@ -2,8 +2,8 @@
 
 This repository maintains and distributes the iterated Skill. Workflow research and original evidence live in a separate research repository, referenced here as `<research-repo>`.
 
-> 本机交接与机器清单不在公开仓库：见本地治理目录的 `pdw-HANDOFF-20261017-opencode.md`。
-> **最新本机交接（含本机路径、不入库）**：`.pdw/HANDOFF-20261017-final.md` —— 新会话开工先读它。
+> 本机交接与机器清单不在公开仓库：见本地治理目录的 `pdw-HANDOFF-20261017-recut.md`。
+> **最新本机交接（含本机路径、不入库）**：`.pdw/HANDOFF-20261017-recut.md` —— 新会话开工先读它（上一份 `.pdw/HANDOFF-20261017-final.md` 留档可查）。
 
 ## 文档地图（顶层 6 份，各读一份责任）
 
@@ -14,7 +14,7 @@ This repository maintains and distributes the iterated Skill. Workflow research 
 - `CHANGELOG.md` — 逐条变更记录（`[main]` 滚动条目 + 历史版本；历史条目不改） — 想查"改了什么、为什么"时读
 - `SECURITY.md` — 漏洞上报与披露政策 — 上报 / 披露安全问题时读
 
-> **交接**：本机状态快照、待办与踩坑不在公开仓库，见本地治理目录的 `pdw-HANDOFF-20261017-opencode.md`（上一份 `pdw-HANDOFF-20261016-opencode.md` 留档可查）。插件与派生副本已移除（`plugin/`、`dist/`、`sync-copies.mjs`、npm 发布工作流），legacy 已整批归档到 `archive/`。
+> **交接**：本机状态快照、待办与踩坑不在公开仓库，见本地治理目录的 `pdw-HANDOFF-20261017-recut.md`（早先的 `pdw-HANDOFF-20261017-opencode.md` / `pdw-HANDOFF-20261016-opencode.md` 留档可查）。插件与派生副本已移除（`plugin/`、`dist/`、`sync-copies.mjs`、npm 发布工作流），legacy 已整批归档到 `archive/`。
 
 - 落位与分发（把 Skill 刷到**丙区** `~\.agents_four_skills\`、升级项目里的副本、与研究发布包的适配口径与验收清单）：按 **`DEPLOYMENT.md`** 执行，不要每次重新讨论口径。方针依据：本地治理笔记的 `Notes/DECISIONS.md` 的 D-0081（仓库=开发位、库=挂载开关、全局=受管链接、项目=按需复制）、D-0085（丙区取代库 + 1.3.3 适配）。**版本口径 = main 滚动，不发版本**（见 `RELEASING.md`）。
 
