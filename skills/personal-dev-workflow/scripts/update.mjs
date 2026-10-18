@@ -135,6 +135,7 @@ function main(argv) {
   const skillPath = skillPathFlag ?? metadata['skill-path'] ?? `skills/${front.name ?? path.basename(skillRoot)}`;
   const project = projectRoot(projectFlag);
   const report = line => { if (!jsonOnly) console.log(line); };
+  const configNote = 'Skill files only: model, reasoning depth, limits and prompt_guidance are project settings; show a diff and wait for explicit user confirmation before changing them.';
 
   if (!source) throw new Error('No source: SKILL.md metadata.repository is missing; pass --source <git-url>');
 
@@ -156,10 +157,11 @@ function main(argv) {
   const stale = [...local.keys()].filter(name => !remote.has(name));
   const current = changed.length === 0 && added.length === 0;
   const summary = { updated: false, version, source, ref, skill_path: skillPath, skill_root: skillRoot, project,
-    files: { total: remote.size, changed, added, stale_kept: stale }, backup: null, cache, doctor: null };
+    files: { total: remote.size, changed, added, stale_kept: stale }, backup: null, cache, doctor: null, note: configNote };
 
   if (current) {
     report(`personal-dev-workflow ${version} is already current (${source} ${ref}); nothing changed.`);
+    report(configNote);
     if (stale.length) report(`Kept ${stale.length} local file(s) the published copy no longer ships: ${stale.join(', ')}`);
     console.log(JSON.stringify(summary));
     return;
@@ -183,6 +185,7 @@ function main(argv) {
   report(`Updated personal-dev-workflow ${version}: ${changed.length} changed, ${added.length} added.`);
   report(`Backup: ${backup}`);
   if (stale.length) report(`Kept ${stale.length} local file(s) the published copy no longer ships: ${stale.join(', ')}`);
+  report(configNote);
 
   const doctor = spawnSync(process.execPath, [path.join(skillRoot, 'scripts', 'pdw.mjs'), 'doctor', '--project', project], { encoding: 'utf8', windowsHide: true, timeout: 120000 });
   summary.doctor = { exit_code: doctor.status, stderr: (doctor.stderr ?? '').trim() || null };

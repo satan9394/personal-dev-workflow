@@ -148,4 +148,5 @@ node --test <本Skill>/scripts/drivers.test.mjs
   3. 无差异 → 报「已是最新（<版本>）」，不改任何文件，退出 0。
   4. 有差异 → 备份当前文件到 `<项目>/.pdw/skill-upgrade-<YYYYMMDD>/personal-dev-workflow-pre-<版本>/` → 逐个原子替换（临时名改到目标名，支持替换自身）→ **不动 `.pdw/config.json`** → 跑 `doctor` 并报告退出码。
 - 脚本不可用时的手工兜底：`git clone --depth 1 --branch main <repository> <临时目录>` → 用远端 9 个文件与当前副本逐字节比对（sha256，缺文件算差异）→ 无差异只回「已是最新（<版本>）」→ 有差异就先备份再整份替换（保留四层目录）→ 跑 `doctor`。网络不可用时就地报告失败并说明用了哪份兜底，不静默沿用本机副本。
+- 自更新**只动技能文件**：模型、思考档位（`reasoning_effort` / `model#variant`）、调用上限与 `prompt_guidance` 属**项目级配置**，改前必须先给出 diff 并等用户明确确认；本程序不会改它们。
 - 不要改本机镜像当"真身"；镜像只是公开仓库的下游副本。

@@ -424,6 +424,7 @@ await test('the bundled updater replaces the copy from its published repository 
   assert.equal(again.status, 0, again.stderr);
   const second = JSON.parse(again.stdout.trim().split(/\r?\n/).at(-1));
   assert.equal(second.updated, false); assert.equal(second.backup, null);
+  assert.match(second.note, /explicit user confirmation/);
   assert.equal(hash(fs.readFileSync(configFile)), configHash);
 });
 await test('the updater refuses a source that has no skill directory', () => {
