@@ -330,12 +330,16 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 | 项目 | scan / test-plan | review | review 档位 | implement | planner |
 | --- | --- | --- | --- | --- | --- |
-| finquant-hub | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
-| Vessel_Harness | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
-| model-infra-kit | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
-| remote-job-aggregator | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
+| finquant-hub | `commandcode/deepseek/deepseek-v4.1-flash` `#high` | `commandcode/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandcode/deepseek/deepseek-v4.1-flash` + `high` |
+| Vessel_Harness | `commandcode/deepseek/deepseek-v4.1-flash` `#high` | `commandcode/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandcode/deepseek/deepseek-v4.1-flash` + `high` |
+| model-infra-kit | `commandcode/deepseek/deepseek-v4.1-flash` `#high` | `commandcode/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandcode/deepseek/deepseek-v4.1-flash` + `high` |
+| remote-job-aggregator | `commandcode/deepseek/deepseek-v4.1-flash` `#high` | `commandcode/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandcode/deepseek/deepseek-v4.1-flash` + `high` |
 
-- **`workbuddy` 已停用（2026-10-25，用户判定线路不稳定）**：四个项目全部改走 `commandgota`，不再有任何角色指向 workbuddy。
+- **provider 更名 `commandgota` → `commandcode`（2026-10-25）**：`~/.config/opencode/opencode.json` 里旧键已不存在，
+  四个项目的 `model` 已同步。`doctor` 查不出这类错误（它只验可执行文件与显式 model），只有真跑任务或按
+  `opencode models` 对账才会暴露——2026-10-25 由运行看板发现三个项目仍写旧名。
+
+- **`workbuddy` 已停用（2026-10-25，用户判定线路不稳定）**：四个项目全部改走 `commandcode`，不再有任何角色指向 workbuddy。
   该 provider 仍留在 `~/.config/opencode/opencode.json` 里（由 CC Switch 代管），只是 PDW 不再使用它；要彻底移除属另一件事。
 - 备份与复核：改前备份到 `.pdw\skill-upgrade-<YYYYMMDD>\config.json.bak-<用途>-<YYYYMMDD>`，改后跑
   `node <项目>/.agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` 并记进日记。
@@ -344,7 +348,7 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
   `commandgota/deepseek/deepseek-v4.1-flash`（`review` 保持 `max`），备份在各自 `.pdw\skill-upgrade-20261018\`，
   两家 `doctor` 均 `exit 0`。
 - **2026-10-25（agy 额度用尽，改为 OpenCode + Codex 两件套）**：`finquant-hub` 与 `model-infra-kit` 的
-  `planner` 由 `agy` 改为 `opencode` + `commandgota/deepseek/deepseek-v4.1-flash` + `high`；两家
+  `planner` 由 `agy` 改为 `opencode` + `commandcode/deepseek/deepseek-v4.1-flash` + `high`；两家
   `scan` / `test-plan` 补 `reasoning_effort: high`；`finquant-hub` 的 `implement` 由失效的 Store 版本化路径
   （`…\OpenAI\Codex\bin\896a0166b774037a\codex.exe`）改为 npm vendor 路径并显式 `gpt-6.1-sol` + `medium`。
   备份在各自 `.pdw\config.bak-20261025-oc-codex.json`；四项目 `doctor` 全部 `exit 0`。

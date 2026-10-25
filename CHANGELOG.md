@@ -22,6 +22,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
   `opencode.json` (CC Switch manages that file); PDW simply no longer routes to it.
 - **`agy` archived, not removed** (quota exhausted). The CLI stays installed; `DEPLOYMENT.md` §7.1
   carries a ready-to-paste `planner` snippet so restoring it later is one role edit plus `doctor`.
+- **Provider renamed `commandgota` → `commandcode`.** The old key is gone from
+  `~/.config/opencode/opencode.json`; three of the four projects still had the old name and would have
+  failed on their next run. `doctor` cannot see this (it only validates the executable and that a model
+  is explicit), so it was caught by reconciling against `opencode models` from the new viewer. All four
+  configs updated; `doctor` exit 0.
 
 ## [main] — 2026-10-24 — Third re-cut of `1.3.3-local`: host model discovery, `--mirror`, effort vocabulary
 
