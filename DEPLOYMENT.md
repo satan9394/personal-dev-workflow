@@ -330,9 +330,9 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 | 项目 | scan / test-plan | review | review 档位 | implement | planner |
 | --- | --- | --- | --- | --- | --- |
-| finquant-hub | `commandgota/deepseek/deepseek-v4.1-flash` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | host-default（codex，未显式指定模型） | host-default |
-| Vessel_Harness | `commandgota/deepseek/deepseek-v4.1-flash` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | host-default |
-| model-infra-kit | `commandgota/deepseek/deepseek-v4.1-flash` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `gemini-3.8-flash-high` |
+| finquant-hub | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
+| Vessel_Harness | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
+| model-infra-kit | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
 | remote-job-aggregator | `workbuddy/deepseek-v4.1-flash` | `workbuddy/deepseek-v4.1-flash` | `high` | `workbuddy/deepseek-v4.1-flash` | `workbuddy/deepseek-v4.1-flash` |
 
 - **review 一律钉该模型可用的最高档**：`commandgota/deepseek/deepseek-v4.1-flash` → `max`；
@@ -344,3 +344,10 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
   `Vessel_Harness` 与 `model-infra-kit` 的 `scan` / `test-plan` / `review` 统一切到
   `commandgota/deepseek/deepseek-v4.1-flash`（`review` 保持 `max`），备份在各自 `.pdw\skill-upgrade-20261018\`，
   两家 `doctor` 均 `exit 0`。
+- **2026-10-25（agy 额度用尽，改为 OpenCode + Codex 两件套）**：`finquant-hub` 与 `model-infra-kit` 的
+  `planner` 由 `agy` 改为 `opencode` + `commandgota/deepseek/deepseek-v4.1-flash` + `high`；两家
+  `scan` / `test-plan` 补 `reasoning_effort: high`；`finquant-hub` 的 `implement` 由失效的 Store 版本化路径
+  （`…\OpenAI\Codex\bin\896a0166b774037a\codex.exe`）改为 npm vendor 路径并显式 `gpt-6.1-sol` + `medium`。
+  备份在各自 `.pdw\config.bak-20261025-oc-codex.json`；四项目 `doctor` 全部 `exit 0`。
+  仍待办：`finquant-hub` 与 `model-infra-kit` 的限额仍是旧的 `8 / 600s / 3600s`（Vessel 是 `10 / 2700s / 7200s`），
+  抬额属预算决策，未改。

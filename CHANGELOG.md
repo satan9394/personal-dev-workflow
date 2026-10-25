@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-25 — Fleet routing moves to OpenCode + Codex (agy quota exhausted)
+
+- `finquant-hub` and `model-infra-kit` `planner` moved from `agy` to `opencode`
+  (`commandgota/deepseek/deepseek-v4.1-flash`, `high`); both also gained explicit
+  `reasoning_effort: high` on `scan` / `test-plan`.
+- `finquant-hub` `implement` was pointing at a deleted Store build path
+  (`…\OpenAI\Codex\bin\896a0166b774037a\codex.exe`), so `doctor` exited 1; repointed to the npm vendor
+  binary with explicit `gpt-6.1-sol` + `medium`.
+- Config backups: `<项目>/.pdw/config.bak-20261025-oc-codex.json`. All four projects `doctor` exit 0.
+  `DEPLOYMENT.md` §7.1 matrix updated. Limits on those two projects remain the older
+  `8 / 600s / 3600s`; raising them is a budget decision and was not made.
+
 ## [main] — 2026-10-24 — Third re-cut of `1.3.3-local`: host model discovery, `--mirror`, effort vocabulary
 
 ### Skill content (same research version string, new bytes)
