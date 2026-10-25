@@ -14,6 +14,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 - Config backups: `<项目>/.pdw/config.bak-20261025-oc-codex.json`. All four projects `doctor` exit 0.
   `DEPLOYMENT.md` §7.1 matrix updated. Limits on those two projects remain the older
   `8 / 600s / 3600s`; raising them is a budget decision and was not made.
+- **`workbuddy` retired from PDW (user: the line is unstable).** `remote-job-aggregator` was the last
+  project on it; all five roles now use `opencode` + `commandgota/deepseek/deepseek-v4.1-flash`
+  (`#high` / `#max`) with `implement` on Codex `gpt-6.1-sol` + `medium`. The per-role
+  `prompt_guidance` that existed only to force strict JSON out of workbuddy was dropped. Backup:
+  `.pdw/config.bak-20261025-drop-workbuddy.json`. The `workbuddy` provider entry itself is left in
+  `opencode.json` (CC Switch manages that file); PDW simply no longer routes to it.
+- **`agy` archived, not removed** (quota exhausted). The CLI stays installed; `DEPLOYMENT.md` §7.1
+  carries a ready-to-paste `planner` snippet so restoring it later is one role edit plus `doctor`.
 
 ## [main] — 2026-10-24 — Third re-cut of `1.3.3-local`: host model discovery, `--mirror`, effort vocabulary
 

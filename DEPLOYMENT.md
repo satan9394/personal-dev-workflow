@@ -333,11 +333,10 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 | finquant-hub | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
 | Vessel_Harness | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
 | model-infra-kit | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
-| remote-job-aggregator | `workbuddy/deepseek-v4.1-flash` | `workbuddy/deepseek-v4.1-flash` | `high` | `workbuddy/deepseek-v4.1-flash` | `workbuddy/deepseek-v4.1-flash` |
+| remote-job-aggregator | `commandgota/deepseek/deepseek-v4.1-flash` `#high` | `commandgota/deepseek/deepseek-v4.1-flash` | `max` | `gpt-6.1-sol` + `medium` | `commandgota/deepseek/deepseek-v4.1-flash` + `high` |
 
-- **review 一律钉该模型可用的最高档**：`commandgota/deepseek/deepseek-v4.1-flash` → `max`；
-  `workbuddy/deepseek-v4.1-flash` → `high`（该模型只到 `high`——这句只作历史注记，**workbuddy 线路正在退场**，
-  2026-10-18 只剩 `remote-job-aggregator` 在用）。
+- **`workbuddy` 已停用（2026-10-25，用户判定线路不稳定）**：四个项目全部改走 `commandgota`，不再有任何角色指向 workbuddy。
+  该 provider 仍留在 `~/.config/opencode/opencode.json` 里（由 CC Switch 代管），只是 PDW 不再使用它；要彻底移除属另一件事。
 - 备份与复核：改前备份到 `.pdw\skill-upgrade-<YYYYMMDD>\config.json.bak-<用途>-<YYYYMMDD>`，改后跑
   `node <项目>/.agents/skills/personal-dev-workflow/scripts/pdw.mjs doctor --project <项目根>` 并记进日记。
 - 落地证据：2026-10-17 四处 `review` 钉档（`finquant-hub` `max`，其余 `high`）；**2026-10-18** 经用户确认，
@@ -351,3 +350,15 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
   备份在各自 `.pdw\config.bak-20261025-oc-codex.json`；四项目 `doctor` 全部 `exit 0`。
   仍待办：`finquant-hub` 与 `model-infra-kit` 的限额仍是旧的 `8 / 600s / 3600s`（Vessel 是 `10 / 2700s / 7200s`），
   抬额属预算决策，未改。
+
+#### 已归档角色：`agy` planner（额度用尽，配置保留以便随时补回）
+
+`agy` 只是额度用完，CLI 仍在盘上、不需要卸载或删除。恢复时只改 `planner` 一个角色，其余不动；备份仍在
+各自的 `.pdw\config.backup-*` 里。模板（`<agy 安装路径>` 用本机实际路径替换，见本地交接）：
+
+```json
+"planner": { "backend": "agy", "executable": "<agy 安装路径>\\agy.exe", "model": null }
+```
+
+补回后必须跑 `doctor`；`planner` 仍保持"仅契约 `planner: true` 时启用"，不要让它在默认路径上消耗额度。
+若要保留 `model`，写 `agy models` 列出的 id（例如 `gemini-3.8-flash-high`），不要写显示名。
