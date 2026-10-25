@@ -3,6 +3,60 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-24 — Third re-cut of `1.3.3-local`: host model discovery, `--mirror`, effort vocabulary
+
+### Skill content (same research version string, new bytes)
+
+- **`init` reads OpenCode v2 `providers` again.** `detectCheapModel()` only read the v1 `provider`
+  key, so on OpenCode 2.x it returned `null`; a fresh `init` then wrote `model: null` and `run`
+  refused with "Set an explicit cheap model". It now reads `providers`, falls back to `provider`,
+  refuses non-object values, and has a fixture covering both shapes. On this machine it resolves a
+  model again instead of `null`.
+- **`update.mjs --mirror <dir>`** brings a second copy (for example a shared agent skill root) to
+  the published bytes in the same run. The mirror must already exist and must not contain, or be
+  contained by, the installed skill. A stale mirror is repaired even when the installed copy is
+  already current; mirror-only files are reported and kept; the mirror is backed up to
+  `.pdw/skill-upgrade-<date>/personal-dev-workflow-pre-<version>-mirror/` before any overwrite.
+  This replaces the "update, then remember to copy nine files by hand" step that could fail
+  silently.
+- **Effort vocabulary corrected in `references/runtime.md`.** The reference claimed that
+  "low/medium/high map to the same reasoningEffort values" for DeepSeek V4.1 Flash. Its declared
+  variants are `low/high/max/off`; `medium` does not exist and `off` disables thinking.
+  GPT-6.1 Sol declares `low/medium/high/xhigh/max/ultra`. Machine-specific claims (a named provider,
+  OpenCode 2.0.30 / 2.0.32) were replaced with version-neutral wording, and `--mirror` is documented.
+- `SKILL.md` metadata `updated` for this cut; the distribution section mentions `--mirror`.
+
+### Verification
+
+- Research: `pdw.test.mjs` 39/39, `drivers.test.mjs` 16/16, `scripts/verify-research.ps1` PASS,
+  `pack-release.py` `zip_crc` PASS.
+- Distribution: `validate-skills.mjs` ok, `validate-skills.test.mjs` 0 failed, `drivers.test.mjs`
+  0 failed, `pdw.test.mjs` 39/39, `archive/tools/run-tests.mjs` 42 passed / 1 skipped.
+- Package: `1.3.3-local` re-cut a third time, sha256 `1479e0a1…` (the previous `e61a3307…` is
+  archived in `.pdw/upstream-package-prepack/`). Only the two repository-layout probes differ from
+  the package.
+
+## [main] — 2026-10-19 — Repair the CP936 mojibake in every historical GitHub Release
+
+### Distribution
+- **A batch publish on 2026-10-18 05:34 UTC pushed all nine release titles and bodies through the
+  Windows CP936 console path.** `—` became `閳?` (78 sites), `→` / `≤` / `…` / `§` / `·` became CP936
+  look-alikes, and one stray BOM was left inside each body. Nothing else was hit: commit messages,
+  tag objects, every tracked file and the other three repositories that have releases were checked
+  byte by byte and are clean.
+- **All nine releases (v0.3.1 … v2.0.0) were re-published with repaired titles and bodies** through
+  `gh api -X PATCH --input` (a UTF-8 file, never a PowerShell string). Each replacement is proved by
+  re-simulating the two-layer corruption with .NET CP936: `corrupt(fixed, 2)` now equals the live text
+  character for character, for every title and body. Repair tool, before/after snapshots and the
+  verification scripts: `.pdw/release-notes-repair-20261018/`.
+- Six titles were restored to the wording of their tag message or CHANGELOG heading; v1.0.0, v0.5.2
+  and v0.5.1 already used an ASCII hyphen and were left untouched. No tag moved, no release was
+  created or deleted, and distribution still rolls on `main`.
+
+### Rules and documentation
+- **`RELEASING.md` gains an encoding rule**: release text travels as a BOM-less UTF-8 file through
+  `gh api --input`; never through a PowerShell string, here-string or `--notes` argument.
+
 ## [main] — 2026-10-18 — Second re-cut of `1.3.3-local`: the updater states the config-confirmation rule
 
 ### Skill content (same research version string, new bytes)

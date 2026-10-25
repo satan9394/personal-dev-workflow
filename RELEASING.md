@@ -52,3 +52,23 @@ git push origin main
 - Do the push from a machine whose git identity is `satan9394 <satan9394@users.noreply.github.com>`
   so no personal email lands in commit metadata.
 - 历史 tag（`v0.3.1` … `v2.0.0`）保留为可回溯的旧叙事，不再新增。
+
+## Encoding rule for release text (2026-10-19)
+
+Any non-ASCII text written to GitHub (release title/body, issue or PR description) must travel as a
+**UTF-8 file without BOM** and be submitted with `gh api -X PATCH --input <file>` (or
+`gh release edit --notes-file <file>`). Never pass it as an argument, a here-string or `--notes`:
+
+- Windows PowerShell 5.1 decodes BOM-less UTF-8 as CP936 and re-encodes to CP936; one round trip turns
+  `—` into `閳?`, `→` / `≤` / `…` / `§` / `·` into CP936 look-alikes and drops bytes. Use `pwsh` with an
+  explicit `utf8NoBOM` writer if a shell is unavoidable.
+- Before publishing, check the payload for `U+FFFD`, `U+95B3` (`閳`), `U+FEFF` and the CP936 look-alikes.
+- After publishing, read the value back from the API and compare byte for byte
+  (`.pdw/release-notes-repair-20261018/verify-published.mjs` does exactly this).
+- Why: the 2026-10-18 batch publish corrupted all nine historical releases this way — see the
+  `CHANGELOG.md` entry of 2026-10-19 and `Notes/DECISIONS.md` D-0092.
+
+**规则（中文）**：写向 GitHub 的任何非 ASCII 文本（Release 标题/正文、issue/PR 描述）一律落成**无 BOM 的
+UTF-8 文件**，用 `gh api --input`（或 `gh release edit --notes-file`）提交；不得经过 PowerShell 字符串、
+here-string 或 `--notes` 参数。坏点是有损的（每次丢字节或吞字符），事后修复只能靠干净参照逐字定夺，成本远高于
+先落一个文件。

@@ -48,11 +48,11 @@
 ## 3. 与研究发布包的关系（**以研究包为准**，2026-10-17 起）
 
 研究项目（下文记作 `<research-repo>`）是上游，交付包在 `artifacts/releases/<version>/`
-（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**，已**就地重切两次**
+（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**，已**就地重切三次**
 （版本号始终不变、包字节每轮都变）：最初 `25da41f8…` → 2026-10-17 重切为 `38167ace…` →
-2026-10-18 第二次重切为 `e61a3307…`；两个旧一代的包字节都在本仓库
-`.pdw/upstream-package-prepack/`（`personal-dev-workflow-1.3.3-local-pre-repack-20261017.zip` /
-`…-pre-repack2-20261018.zip`）留档。
+2026-10-18 第二次重切为 `e61a3307…` → 2026-10-24 第三次重切为 `1479e0a1…`；两个较早一代的包字节都在本仓库
+`.pdw/upstream-package-prepack/`（`…-pre-repack-20261017.zip` / `…-pre-repack2-20261018.zip` /
+`…-pre-repack3-20261024.zip`）留档。
 
 - **规则：以研究包为准做适配**（2026-10-17 用户口径，取代先前"只作对照基准、不覆盖"）。
   适配 = 包内容原样落地 + **只保留仓库布局所必需的改动**：
@@ -104,19 +104,19 @@ Copy-Item "$tmp\personal-dev-workflow\*" 'skills\personal-dev-workflow' -Recurse
 Copy-Item 'skills\personal-dev-workflow\*' "$env:USERPROFILE\.agents_four_skills\personal-dev-workflow" -Recurse -Force
 ```
 
-参考值（2026-10-18 第二次重切后，`1.3.3-local`，sha256 前 10 位；内容变动时同步更新）：
+参考值（2026-10-24 第三次重切后，`1.3.3-local`，sha256 前 10 位；内容变动时同步更新）：
 
 | 文件 | 上游 1.3.3 包 | 本项目 / 丙区 |
 | --- | --- | --- |
-| SKILL.md | `ea60dcf1…` | 同（未改） |
+| SKILL.md | `78f233c0…` | 同（未改） |
 | agents/openai.yaml | `f8cfe876…` | 同（未改） |
 | assets/audit-task.json | `fe2d91b6…` | 同（未改） |
-| references/runtime.md | `bc006bb8…` | 同（未改） |
+| references/runtime.md | `84c00dd4…` | 同（未改） |
 | scripts/drivers.mjs | `4821702b…` | 同（未改） |
-| scripts/pdw.mjs | `42e393e1…` | 同（未改） |
-| scripts/update.mjs | `8fbe036f…` | 同（未改） |
-| scripts/drivers.test.mjs | `dc6ecbc0…` | 改一处（仓库布局探测） |
-| scripts/pdw.test.mjs | `6e5eccfe…` | 改一处（仓库布局探测） |
+| scripts/pdw.mjs | `f2afedc2…` | 同（未改） |
+| scripts/update.mjs | `94fd25fd…` | 同（未改） |
+| scripts/drivers.test.mjs | `dc6ecbc0…` | `376b010c…`（改一处：仓库布局探测） |
+| scripts/pdw.test.mjs | `ea8d92f7…` | `77f800da…`（改一处：仓库布局探测） |
 
 **期望的比对结论**：9 个文件里只有 `scripts/drivers.test.mjs`、`scripts/pdw.test.mjs` 各差 1 行（布局探测），
 其余逐字节相同。
