@@ -3,6 +3,34 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-26 — Fourth re-cut of `1.3.3-local`: a read-only dashboard (`pdw view`)
+
+### Skill content (same research version string, new bytes)
+
+- **New `scripts/viewer.mjs` + `assets/viewer.html`.** `pdw view [--port <n>] [--open]` serves a
+  read-only local dashboard for one project (default `http://127.0.0.1:8891/`). It reads
+  `.pdw/tasks/` (`state.json`, `contract.json`, `attempts/*`, `checks-*`, `changed-files.json`) and the
+  newest Codex session log for `rate_limits`; it never writes, never spawns a model and never calls the
+  network. The module can also be imported (`startViewer({ project, port, open })`).
+- **What the page shows:** the project's task list with filters and day grouping; a hero line that
+  switches between "currently on step N · who is running it" and the final verdict; the seven steps with
+  executor, model and reasoning depth (idle roles show their configured values, marked as not run); one
+  normalised timeline strip with a plain-language caption; checks with exit codes; per-attempt records
+  with log tails; changed files; and Codex remaining quota (5-hour and weekly windows) with absolute
+  reset times.
+- Theme: light / dark / follow system, written before first paint; the palette is the aurora-glass
+  token set, with the background drifting on transform-only compositor layers.
+- `pdw.mjs` gains the `view` command and lists it in `help`.
+- Tests: one new case starts the server against a temporary project and asserts `/api/project`,
+  `/api/tasks` and the HTML page. Suite 40/40, drivers 16/16, `verify-research.ps1` PASS.
+
+### Distribution
+
+- Skill count 9 → 11 files; `DEPLOYMENT.md` §3 and §4 refreshed; package re-cut a fourth time
+  (`0e70e78e…`, previous `1479e0a1…` archived in `.pdw/upstream-package-prepack/`).
+- Rolled out to `Vessel_Harness` first (2026-10-26); other projects remain on the previous cut until
+  they run `update.mjs`.
+
 ## [main] — 2026-10-25 — Fleet routing moves to OpenCode + Codex (agy quota exhausted)
 
 - `finquant-hub` and `model-infra-kit` `planner` moved from `agy` to `opencode`
