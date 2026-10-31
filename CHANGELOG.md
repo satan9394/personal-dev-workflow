@@ -32,8 +32,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 
 - Package `1.4.0-local` (`91e2f751…`), 11 files; `pdwSkillVersion` 1.3.3-local → 1.4.0-local.
   The previous 1.3.3-local bytes stay in the research repository's release history.
-- Not rolled out yet: the shared read-only area and project copies still carry 1.3.3-local until this
-  lands on `main` and they run `update.mjs`.
+- Rolled out on 2026-10-31 to the shared read-only area and `finquant-hub` (11/11 files byte-identical;
+  `update.mjs --mirror` backed up the old copies under `.pdw/skill-upgrade-20261031/`). `finquant-hub`
+  `doctor` exits 0 after repointing the two role executables that the Node/nvm relocation had orphaned.
+  `Vessel_Harness` is skipped while it holds a `run.lock`; `model-infra-kit` and `remote-job-aggregator`
+  currently have no `.agents/skills` copy, so nothing was written there.
 
 ## [main] — 2026-10-26 — Fourth re-cut of `1.3.3-local`: a read-only dashboard (`pdw view`)
 

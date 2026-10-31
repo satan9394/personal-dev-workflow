@@ -198,7 +198,7 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 
 **本机曾配置的读取位与项目副本清单属本机信息，见本地治理笔记**；本节只保留中性口径与可迁移的流程教训。
 
-**使用位 = 丙区，且只有这一个根**：读取位 `~\.agents_four_skills\personal-dev-workflow`（`1.4.0-local` 尚未铺开，当前仍是 `1.3.3-local` 内容 + 两处布局探测），**它是 GitHub `main` 的本地镜像，不是独立真身**（见下）。
+**使用位 = 丙区，且只有这一个根**：读取位 `~\.agents_four_skills\personal-dev-workflow`（已刷到 `1.4.0-local`，11/11 与仓库逐字节一致），**它是 GitHub `main` 的本地镜像，不是独立真身**（见下）。
 项目级同步源与此不同：见 §7（GitHub main）；**四个 agent 的读法定义见 §1，此处不重复**。
 **不再有 junction**：四个 agent 技能根里指向丙区的链接已于 2026-10-17 全部清掉（进回收站），四个根下的丙区条目数现为 **0**。仓库与丙区两份 **8/8 逐字节一致、行尾全 LF**。
 本技能已从 skills-manager 库移除；dsh 原来的 2.0.0 真副本备份在本仓库
@@ -319,7 +319,7 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 已按此固定配置的项目（2026-10-17，均 `1.3.3-local`、`doctor exit 0`）：
 `finquant-hub`、`Vessel_Harness`、`model-infra-kit`、`remote-job-aggregator`。
-`1.4.0-local` 出包后需各自跑一次 `update.mjs` 才能升到工作树模式；升级前先按 §5 核对该项目没有活动 `run.lock`。
+`1.4.0-local` 已铺到丙区与 `finquant-hub`（2026-10-31，`doctor exit 0`）；其余三个项目待各自跑 `update.mjs`——`Vessel_Harness` 有活动 `run.lock`，`model-infra-kit` 与 `remote-job-aggregator` 当前没有 `.agents/skills` 副本。升级前先按 §5 核对该项目没有活动 `run.lock`。
 
 **换配置的条件**：只在用户明确要求时（换源、换布局、换备份位置等）；换完同步更新本节、各项目的
 `pdw-skill-sync` 块与 `CHANGELOG.md`。
