@@ -1,4 +1,4 @@
-# PDW 1.3.3 本地运行工具
+# PDW 1.4.0 本地运行工具
 
 仅依赖 Node.js 18+ 与已经安装、登录的 CLI；代码使用 Node 标准库，沿用 PDW 的 JavaScript 脚本形式，不安装 TypeScript/Next.js 或新依赖。
 
@@ -8,7 +8,7 @@
 
 在项目根目录用 `node <本Skill绝对路径>/scripts/pdw.mjs <命令>`；当前研究项目还提供 `pdw.ps1` 包装。
 
-- `init`：创建 `.pdw/config.json`、任务目录，并给项目 `.gitignore` 追加 `.pdw/`；已有配置保持原样。
+- `init`：创建 `.pdw/config.json`、任务目录，并给项目 `.gitignore` 追加 `.pdw/`；已有配置保持原样。在 linked worktree 里不写任何文件，只报告主 checkout 的状态根。
 - `doctor`：核对原生可执行文件、版本与角色配置。model_explicit 只表示显式填写模型；Codex/AGY 的 host-default 不再被标成 explicit。ready 可接受这两个后端的宿主默认，OC 则必须显式指定模型；退出码 0 仅表示非 planner 角色 ready，**不等于登录、模型路由、调用或输出协议已通过**。
 - `new --from <JSON文件>`：冻结一张任务卡、基线和任务限额，返回任务 ID。
 - `plan <id>`：列出会用的角色、模型、检查与预算；不调用模型。
@@ -19,13 +19,30 @@
 - `resume <id>`：保留已完成阶段、调用次数、耗时和修复次数继续；代码基线漂移则拒绝旧证据。路由可由用户调整，任务限额不随配置提高而增加。
 - `demo`：对安装了本 Skill 的项目进行真实模型只读审计，会消耗配置模型额度；它不执行产品代码修改。
 - `view [--port <n>] [--open]`：起一个只读本地看板（默认 `http://127.0.0.1:8891/`），按项目列出任务、七步进度、每次派发的模型与思考档位、验收退出码和 Codex 剩余用量。数据只来自 `.pdw/tasks/` 与本机 Codex 会话日志，不写盘、不起模型；进程前台运行，Ctrl+C 结束。
-- `install --project <已存在目录>`：将本 Skill 完整复制为该项目 `.agents/skills/personal-dev-workflow`。目标已有同名 Skill 时拒绝覆盖，先比较迁移。
+- `install --project <已存在目录>`：将本 Skill 完整复制为该项目 `.agents/skills/personal-dev-workflow`；链接工作树里拒绝安装，去主 checkout 执行。目标已有同名 Skill 时拒绝覆盖，先比较迁移。
 
 所有命令支持 `--project <项目绝对路径>`。运行失败保留 REPORT.md、状态、完整 stdout/stderr 与验收命令输出，不删除证据。
 
 Windows 的 init 按 PATH 查找原生 exe；Codex 的 npm 壳会解析到官方可选平台包或旧 vendor 布局中的 codex.exe，不执行 .cmd/.ps1 壳。原生 exe 优先，支持中文路径；找不到就由 doctor 明确报不可用。init 不覆盖已有配置，因此宿主升级后旧 hash 路径失效时，仍需重新核对并显式更新该项目 executable；不要复制其他机器路径。
 
 已有同名 Skill 的升级仍需先比较与可回滚备份，再迁移完整目录、入口及必要的 Hook 引用；没有自动 upgrade 命令或旧 runstate 状态转换。保留进行中的 Mission、原始证据与已用预算，到安全边界切换，不能用重装重置额度。新配置初始化成功后先 doctor，再做隔离小任务确认实际登录/输出协议；不要仅凭 doctor 放行真实业务任务。
+
+## 工作树与状态目录
+
+PDW 可以在仓库的 linked worktree 里运行，也可以在主 checkout 里运行；程序自己判断，不新增配置项：
+
+```text
+git rev-parse --show-toplevel      # 代码根（必须等于当前目录）
+git rev-parse --git-common-dir     # 主库的 .git
+```
+
+`--show-toplevel` 等于当前目录、且 common dir 的父目录不是当前目录时，判为 linked worktree：代码根 = 当前工作树，状态根 = 主 checkout 的 `.pdw`。快照、检查命令与角色进程都在工作树里；`state`、`baseline`、`HANDOFF`、运行锁都在主库。主 checkout 的普通子目录不会被误判为工作树，它仍按原有规则被快照拒绝。
+
+三种情况直接失败，不静默处理：工作树里已存在 `.pdw`（状态会分叉，先人工搬走）；主 checkout 没有 `.pdw/config.json`（去主库 init）；工作树是分离 HEAD 或在 `main`/`master` 上（先建或切任务分支）。
+
+提交策略：工作树模式允许在任务分支上提交；每次角色调用后校验分支未变、基线提交是 HEAD 的祖先、`base..HEAD` 的每个提交路径都在 scope 内。违规会 blocked，工作树保留供排查。程序不 push、不合并、不 rebase，也不删除工作树；创建与清理交给宿主的工作树工具或人工执行。
+
+快照指纹分两段：`content` 只含文件内容，`fingerprint` 沿用旧的 head+内容。新任务写 `schema_version: 2` 并以 `content` 比较，因此提交不会让内容证据失效；旧任务（schema 1）继续按 head+内容比较，不会被静默改写。`status`/`handoff` 里的 `worktree`、`branch`、`base_head` 是运行事实，可以重算，但不能由角色改写。
 
 ## 上下文接续与文档维护
 

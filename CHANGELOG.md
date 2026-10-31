@@ -3,6 +3,38 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-10-31 — `1.4.0-local`: worktree attach mode
+
+### Skill content (new research version)
+
+- **Linked worktrees are recognised automatically.** `pdw` now resolves two roots: the code root (the
+  checkout it runs in) and the state root. When `git rev-parse --show-toplevel` equals the current
+  directory and `--git-common-dir` points at another checkout's `.git`, every snapshot, check command and
+  role process runs inside the worktree while `state.json`, `baseline.json`, `HANDOFF.md` and the run lock
+  stay in the main checkout's `.pdw`. Plain checkouts and ordinary subdirectories keep the old behaviour.
+- **State-fork guards.** A worktree that already owns `.pdw`, a main checkout without
+  `.pdw/config.json`, a detached `HEAD`, or a worktree on `main`/`master` are refused before any model
+  call. `init` inside a worktree writes nothing; `install` refuses and points at the main checkout.
+- **Commits on the task branch are allowed** (everything else stays forbidden: no push, merge, rebase,
+  branch switch or out-of-scope commit). After each role call the runner verifies the branch is unchanged,
+  the frozen base commit is an ancestor, and every path in `base..HEAD` is inside the task scope.
+  Violations block the task and keep the worktree for inspection; PDW never deletes a worktree.
+- **Fingerprints split into two fields.** `snapshot()` returns a contents-only `content` hash next to the
+  legacy `fingerprint` (HEAD + contents). New tasks are written as `schema_version: 2` and compare
+  `content`, so a commit no longer invalidates content evidence; existing schema-1 tasks keep the old
+  comparison and are never rewritten. `state.worktree` records `{ mode, main, branch, base_head }`.
+- `doctor` reports the resolved workspace; `view` reads the state root instead of assuming
+  `<project>/.pdw`; prompts state the work root and the read-only state directory.
+- Tests: 9 new cases (state placement, missing/stray state, in-scope and out-of-scope commits, default
+  branch, detached HEAD, branch switch, schema-1 compatibility). Suite 49/49, drivers 16/16.
+
+### Distribution
+
+- Package `1.4.0-local` (`91e2f751…`), 11 files; `pdwSkillVersion` 1.3.3-local → 1.4.0-local.
+  The previous 1.3.3-local bytes stay in the research repository's release history.
+- Not rolled out yet: the shared read-only area and project copies still carry 1.3.3-local until this
+  lands on `main` and they run `update.mjs`.
+
 ## [main] — 2026-10-26 — Fourth re-cut of `1.3.3-local`: a read-only dashboard (`pdw view`)
 
 ### Skill content (same research version string, new bytes)

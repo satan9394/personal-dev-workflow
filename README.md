@@ -21,7 +21,7 @@ planning when a task needs it.
 
 The distribution ships on a rolling `main` branch: no tags, no GitHub Releases, no npm publishing
 (see [`RELEASING.md`](RELEASING.md)). The Skill body follows the upstream research package
-**1.3.3-local**; `pdwSkillVersion` records the research/runtime version and the body's version strings
+**1.4.0-local**; `pdwSkillVersion` records the research/runtime version and the body's version strings
 follow it, while `package.json.version` stays at `2.0.1` and is not bumped. **This repository ships
 the Skill only** — the DSH plugin bundle and the generated copies were removed on 2026-10-16.
 
@@ -130,7 +130,7 @@ Minimal contract (fields are documented in [`references/runtime.md`](skills/pers
 
 ```
 personal-dev-workflow/
-├── skills/personal-dev-workflow/      # THE skill (research 1.3.3-local): SKILL.md + references/runtime.md
+├── skills/personal-dev-workflow/      # THE skill (research 1.4.0-local): SKILL.md + references/runtime.md
 │                                      #   + agents/openai.yaml + assets/audit-task.json
 │                                      #   + scripts/{pdw.mjs, drivers.mjs, drivers.test.mjs, pdw.test.mjs, update.mjs}
 ├── scripts/validate-skills.mjs        # frontmatter + reference + version-consistency checks

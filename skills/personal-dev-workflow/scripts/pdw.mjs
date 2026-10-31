@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { findExecutable, invocation, parseResult, resultSchema, modelPromptContext, validateProfile, modelSettings } from './drivers.mjs';
 
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const version = '1.3.3-local';
+const version = '1.4.0-local';
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -31,11 +31,58 @@ export function write(file, value) {
   }
 }
 
-function managedRoot(project) {
-  const root = fs.realpathSync(project);
-  const store = path.join(root, '.pdw');
+/**
+ * Resolve the code root (the checkout the agent may read and write) and the state root.
+ * A linked worktree shares <main>/.git, so PDW keeps its task state in the main checkout
+ * while every snapshot, check and role process runs inside the worktree.
+ */
+export function workspace(project) {
+  const work = fs.realpathSync(project);
+  let main = work, mode = 'plain';
+  const common = git(work, ['rev-parse', '--path-format=absolute', '--git-common-dir'])
+    ?? git(work, ['rev-parse', '--git-common-dir']);
+  const value = common?.trim();
+  if (value) {
+    const absolute = path.isAbsolute(value) ? value : path.resolve(work, value);
+    let resolved = absolute;
+    try { resolved = fs.realpathSync(absolute); } catch { /* Keep the readable path when realpath is unavailable. */ }
+    // A plain subdirectory of a repository also reports the enclosing .git; only a root
+    // whose own --show-toplevel equals itself is a checkout, and only a shared .git then
+    // means a linked worktree. Submodules keep their git dir under .git/modules.
+    const topRaw = git(work, ['rev-parse', '--show-toplevel'])?.trim() ?? null;
+    let top = topRaw;
+    try { if (topRaw) top = fs.realpathSync(topRaw); } catch { /* Keep the reported path. */ }
+    if (top && sameDirectory(top, work) && path.basename(resolved) === '.git' && !sameDirectory(path.dirname(resolved), work)) {
+      main = path.dirname(resolved); mode = 'worktree';
+    }
+  }
+  const store = path.join(main, '.pdw');
   if (fs.existsSync(store) && fs.lstatSync(store).isSymbolicLink()) throw new Error('.pdw cannot be a symbolic link');
-  return { root, store };
+  return { work, main, store, mode };
+}
+
+/** Refuse the two ways a linked worktree silently forks or loses task state. */
+function assertManaged(ws) {
+  if (ws.mode !== 'worktree') return ws;
+  const stray = path.join(ws.work, '.pdw');
+  if (fs.existsSync(stray)) throw new Error(`This linked worktree has its own .pdw (${stray}); PDW state must stay in ${ws.main}. Inspect that directory, then move it out before continuing.`);
+  if (!fs.existsSync(path.join(ws.store, 'config.json'))) throw new Error(`PDW is not initialized in the main checkout (${ws.main}); run init there, not in the worktree.`);
+  return ws;
+}
+
+/** Branch facts a task worktree must satisfy before it can own a run. */
+function branchOf(work) {
+  const branch = git(work, ['rev-parse', '--abbrev-ref', 'HEAD'])?.trim() ?? null;
+  const head = git(work, ['rev-parse', 'HEAD'])?.trim() ?? null;
+  return { branch, head };
+}
+
+function assertTaskBranch(work, expected) {
+  const { branch } = branchOf(work);
+  if (!branch || branch === 'HEAD') throw new Error('Task worktree is on a detached HEAD; check out a task branch before continuing');
+  if (['main', 'master'].includes(branch)) throw new Error(`Refusing to run a task on ${branch}; create a task branch in the worktree`);
+  if (expected && branch !== expected) throw new Error(`Task branch changed: expected ${expected}, found ${branch}`);
+  return branch;
 }
 
 function git(root, args, input) {
@@ -122,13 +169,26 @@ export function snapshot(root, scopes = []) {
     throw new Error(`Snapshot covered ${files.size} file(s) but recorded no readable content; refusing an empty baseline`);
   }
   const head = git(root, ['rev-parse', 'HEAD'])?.trim() ?? null;
-  return { fingerprint: hash(JSON.stringify({ head, contents })), head, contents,
+  const content = hash(JSON.stringify(contents));
+  return { fingerprint: hash(JSON.stringify({ head, contents })), content, head, contents,
     coverage: { source: filesystem ? 'filesystem' : 'git+scope', file_count: Object.keys(contents).length, forced_roots: forced, excluded_directories: [...ignored] } };
 }
 
 export function changed(before, after) {
   return [...new Set([...Object.keys(before.contents), ...Object.keys(after.contents)])]
     .filter(file => before.contents[file] !== after.contents[file]);
+}
+
+/**
+ * schema 1 bound the artifact to HEAD, so any commit invalidated old evidence.
+ * schema 2 compares contents only; the branch policy below owns HEAD movement.
+ */
+function observed(snapshot, schema) {
+  return Number(schema ?? 1) >= 2 ? snapshot.content : snapshot.fingerprint;
+}
+
+function inScope(task, file) {
+  return task.scope.some(scope => scope === '.' || file === scope || file.startsWith(scope.replace(/\/$/, '') + '/'));
 }
 
 function validateContract(task) {
@@ -145,8 +205,8 @@ function validateContract(task) {
   if (new Set(task.checks.map(c => c.id)).size !== task.checks.length) throw new Error('Duplicate check id');
 }
 
-function configFor(root) {
-  const config = read(path.join(root, '.pdw', 'config.json'));
+function configFor(store) {
+  const config = read(path.join(store, 'config.json'));
   for (const key of ['max_cli_calls', 'call_timeout_seconds', 'task_timeout_seconds']) {
     if (!Number.isInteger(config.limits?.[key]) || config.limits[key] < 1) throw new Error(`Invalid limit ${key}`);
   }
@@ -181,7 +241,14 @@ export function withSavedOpenCodeVariant(model, file = path.join(process.env.XDG
 }
 
 function initialize(project) {
-  const { root, store } = managedRoot(project);
+  const ws = workspace(project);
+  if (ws.mode === 'worktree') {
+    assertManaged(ws);
+    // Initializing inside a worktree would fork state and rewrite a tracked .gitignore.
+    return { project: ws.work, main: ws.main, store: ws.store, worktree: true,
+      next: 'State stays in the main checkout; create and run tasks from this worktree.' };
+  }
+  const { work: root, store } = ws;
   const configFile = path.join(store, 'config.json');
   fs.mkdirSync(path.join(store, 'tasks'), { recursive: true });
   if (!fs.existsSync(configFile)) {
@@ -200,45 +267,53 @@ function initialize(project) {
   return { project: root, config: configFile, next: 'doctor; new --from <contract.json>; plan <id>; run <id>' };
 }
 
-function taskFiles(root, id) {
+function taskFiles(store, id) {
   if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(id ?? '')) throw new Error('Task id: lowercase letters, digits and hyphens, max 80');
-  const dir = path.join(root, '.pdw', 'tasks', id);
+  const dir = path.join(store, 'tasks', id);
   if (fs.existsSync(path.dirname(dir)) && fs.lstatSync(path.dirname(dir)).isSymbolicLink()) throw new Error('Task parent directory cannot be a symbolic link');
   if (fs.existsSync(dir) && fs.lstatSync(dir).isSymbolicLink()) throw new Error('Task directory cannot be a symbolic link');
   return { dir, contract: path.join(dir, 'contract.json'), state: path.join(dir, 'state.json'), cancel: path.join(dir, 'cancel.json') };
 }
 
-function createTask(root, from) {
+function createTask(ws, from) {
+  assertManaged(ws);
   const task = read(path.resolve(from));
   validateContract(task);
   const id = `${new Date().toISOString().slice(0, 19).replace(/\D/g, '')}-${crypto.randomBytes(3).toString('hex')}`;
-  const files = taskFiles(root, id);
-  const baseline = snapshot(root, task.scope);
+  const files = taskFiles(ws.store, id);
+  const branch = ws.mode === 'worktree' ? assertTaskBranch(ws.work) : null;
+  const baseline = snapshot(ws.work, task.scope);
   write(files.contract, task);
-  write(path.join(files.dir, 'baseline.json'), baseline);
-  write(files.state, { schema_version: 1, id, project: root, status: 'ready', phase: task.planner ? 'planner' : 'scan',
+  write(path.join(files.dir, 'baseline.json'), { schema_version: 2, ...baseline });
+  write(files.state, { schema_version: 2, id, project: ws.work, store: ws.store,
+    worktree: branch ? { mode: 'attach', main: ws.main, branch, base_head: baseline.head } : null,
+    status: 'ready', phase: task.planner ? 'planner' : 'scan',
     contract_hash: hash(fs.readFileSync(files.contract)), calls_used: 0, repairs_used: 0, elapsed_ms: 0,
-    limits: configFor(root).limits,
-    artifact: baseline.fingerprint, roles: {}, attempts: [], checks: [], active: [], created_at: stamp(), failure: null });
-  writeHandoff(root, id);
+    limits: configFor(ws.store).limits,
+    artifact: baseline.content, roles: {}, attempts: [], checks: [], active: [], created_at: stamp(), failure: null });
+  writeHandoff(ws, id);
   return { id, directory: files.dir, next: `plan ${id}` };
 }
 
-function writeHandoff(root, id, observation) {
-  const files = taskFiles(root, id), state = read(files.state), task = read(files.contract);
+function writeHandoff(ws, id, observation) {
+  const files = taskFiles(ws.store, id), state = read(files.state), task = read(files.contract);
+  const taskSchema = Number(state.schema_version ?? 1);
   if (!observation) {
-    try { observation = { current: snapshot(root, task.scope), error: null }; }
+    try { observation = { current: snapshot(state.project ?? ws.work, task.scope), error: null }; }
     catch (error) { observation = { current: null, error: error.message }; }
   }
   const { current, error: snapshotError } = observation, baseline = read(path.join(files.dir, 'baseline.json'));
   const contractCurrent = hash(fs.readFileSync(files.contract)) === state.contract_hash;
-  const evidenceCurrent = Boolean(current && current.fingerprint === state.artifact && contractCurrent);
+  const currentKey = current ? observed(current, taskSchema) : null;
+  const evidenceCurrent = Boolean(current && currentKey === state.artifact && contractCurrent);
   const review = Object.entries(state.roles).filter(([name]) => name.startsWith('review-')).at(-1)?.[1];
   const data = {
-    id, generated_at: stamp(), project: root, goal: task.goal, scope: task.scope, acceptance: task.acceptance,
+    id, generated_at: stamp(), project: ws.work, store: ws.store, worktree: state.worktree ?? null,
+    branch: state.worktree?.branch ?? null,
+    goal: task.goal, scope: task.scope, acceptance: task.acceptance,
     status: state.status, phase: state.phase, contract_current: contractCurrent, evidence_current: evidenceCurrent,
     accepted_current: state.status === 'accepted_local' && evidenceCurrent,
-    artifact: state.artifact, current_artifact: current?.fingerprint ?? null, head: current?.head ?? null,
+    artifact: state.artifact, current_artifact: currentKey, head: current?.head ?? null, base_head: baseline.head ?? null,
     snapshot_coverage: current?.coverage ?? { source: 'unavailable', file_count: null }, snapshot_error: snapshotError,
     changes_known: Boolean(current), changed_files: current ? changed(baseline, current) : [], calls_used: state.calls_used,
     calls_remaining: Math.max(0, state.limits.max_cli_calls - state.calls_used),
@@ -246,9 +321,9 @@ function writeHandoff(root, id, observation) {
     seconds_remaining: Math.max(0, Math.floor(state.limits.task_timeout_seconds - state.elapsed_ms / 1000)),
     active: state.active, failure: state.failure, cost: 'unknown',
     checks: state.checks.map(check => ({ id: check.id, exit_code: check.exit_code, reason: check.reason, stdout: check.stdout, stderr: check.stderr,
-      current: evidenceCurrent && check.artifact === current?.fingerprint })),
+      current: evidenceCurrent && check.artifact === currentKey })),
     review: review ? { verdict: review.result.verdict, summary: review.result.summary, findings: review.result.findings,
-      current: evidenceCurrent && review.fingerprint === current?.fingerprint, result_file: path.join(review.directory, 'result.json') } : null,
+      current: evidenceCurrent && review.fingerprint === currentKey, result_file: path.join(review.directory, 'result.json') } : null,
     role_results: Object.fromEntries(Object.entries(state.roles).map(([role, value]) => [role, path.join(value.directory, 'result.json')])),
     contract_file: files.contract, state_file: files.state, handoff_file: path.join(files.dir, 'HANDOFF.md'),
   };
@@ -263,8 +338,7 @@ function writeHandoff(root, id, observation) {
   return data;
 }
 
-function acquire(root, id) {
-  const store = path.join(root, '.pdw');
+function acquire(store, id) {
   const lock = path.join(store, 'run.lock');
   fs.mkdirSync(lock); // atomic project-wide single coordinator, not a distributed lock
   write(path.join(lock, 'owner.json'), { pid: process.pid, id, started_at: stamp() });
@@ -276,15 +350,15 @@ function acquire(root, id) {
   };
 }
 
-function recoverLock(root) {
-  const lock = path.join(root, '.pdw', 'run.lock');
+function recoverLock(store) {
+  const lock = path.join(store, 'run.lock');
   if (!fs.existsSync(lock)) return;
   if (fs.lstatSync(lock).isSymbolicLink()) throw new Error('Lock directory cannot be a symbolic link');
   const owner = read(path.join(lock, 'owner.json'));
   if (alive(owner.pid)) throw new Error(`Coordinator ${owner.pid} is still alive; use status/cancel, not resume`);
-  const state = read(taskFiles(root, owner.id).state);
+  const state = read(taskFiles(store, owner.id).state);
   if (state.active.some(child => alive(child.pid))) throw new Error('Coordinator stopped but recorded child processes are still alive. Inspect their PIDs before resuming; they were not silently reset.');
-  const history = path.join(root, '.pdw', 'lock-history', `recovered-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`);
+  const history = path.join(store, 'lock-history', `recovered-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`);
   fs.mkdirSync(path.dirname(history), { recursive: true });
   fs.renameSync(lock, history);
 }
@@ -337,7 +411,7 @@ async function execute(command, args, cwd, prefix, seconds, context, stdin) {
   }
 }
 
-function promptFor(role, task, state, files, before, profile) {
+function promptFor(role, task, state, files, key, profile) {
   const purpose = {
     planner: 'Resolve architectural decisions and produce the smallest actionable plan. Do not implement.',
     scan: 'Read-only: locate existing implementation, callers and root causes. Cite files/lines. The test-plan worker owns verification discovery; do not duplicate a full scan.',
@@ -347,7 +421,10 @@ function promptFor(role, task, state, files, before, profile) {
     review: 'Independently verify every acceptance criterion against the actual current artifact and raw check logs. Check affected docs against actual behavior; state why no doc changes are needed when applicable. Read implementation explanations only as claims. Do not modify source. Mark missing evidence not_run/fail. For audit tasks, findings are the deliverable: accurately reporting an existing defect may satisfy acceptance.',
   }[role];
   const prior = Object.fromEntries(Object.entries(state.roles).map(([name, value]) => [name, { result: value.result, evidence: value.directory }]));
-  return `You are the ${role} for a bounded personal development task.\n${purpose}\n${modelPromptContext(profile)}\nProject: ${state.project}\nArtifact fingerprint: ${before.fingerprint}\nContract file: ${files.contract}\nContract:\n${JSON.stringify(task, null, 2)}\nPrior stage artifacts (consult original sources/logs; do not assume summaries prove success):\n${JSON.stringify(prior, null, 2)}\nActual check results:\n${JSON.stringify(state.checks, null, 2)}\nLast failure: ${state.failure ?? 'none'}\nRules: obey project instructions. No commit/push/merge/send/publish/deploy/deletion, credential reads, global config changes or nested agents. Never edit .pdw or this runner. Keep within scope. Do not claim a browser path was tested if it was not. Return exactly one final JSON object matching:\n${JSON.stringify(resultSchema)}\nFor review, acceptance must contain every contract criterion id, its status and concrete evidence. For other roles acceptance may be empty. verdict=pass means this role finished its assignment; it does not approve the whole task.\n`;
+  const commitRule = state.worktree?.mode === 'attach'
+    ? `You work inside the task worktree on branch ${state.worktree.branch} and may commit there; never push, merge, rebase, switch branches, or commit paths outside scope.`
+    : 'No commit/push/merge/send/publish/deploy/deletion, credential reads, global config changes or nested agents.';
+  return `You are the ${role} for a bounded personal development task.\n${purpose}\n${modelPromptContext(profile)}\nProject (work root): ${state.project}\nState directory (read-only for you): ${state.store ?? path.dirname(files.dir)}\nArtifact fingerprint: ${key}\nContract file: ${files.contract}\nContract:\n${JSON.stringify(task, null, 2)}\nPrior stage artifacts (consult original sources/logs; do not assume summaries prove success):\n${JSON.stringify(prior, null, 2)}\nActual check results:\n${JSON.stringify(state.checks, null, 2)}\nLast failure: ${state.failure ?? 'none'}\nRules: obey project instructions. ${commitRule} Never edit .pdw or this runner. Keep within scope. Do not claim a browser path was tested if it was not. Return exactly one final JSON object matching:\n${JSON.stringify(resultSchema)}\nFor review, acceptance must contain every contract criterion id, its status and concrete evidence. For other roles acceptance may be empty. verdict=pass means this role finished its assignment; it does not approve the whole task.\n`;
 }
 
 function verifyReview(task, result) {
@@ -360,21 +437,40 @@ function verifyReview(task, result) {
   return task.acceptance.every(item => entries.get(item.id)?.status === 'pass' && entries.get(item.id).evidence.trim());
 }
 
-function scopeCheck(task, baseline, current) {
-  if (baseline.head !== current.head) throw new Error('Git HEAD changed: commits are not authorized by this task');
-  const outside = changed(baseline, current).filter(file => !task.scope.some(scope => scope === '.' || file === scope || file.startsWith(scope.replace(/\/$/, '') + '/')));
+function scopeCheck(task, baseline, current, state) {
+  if (state.worktree?.mode === 'attach') {
+    assertTaskBranch(state.project, state.worktree.branch);
+    if (baseline.head && current.head !== baseline.head) {
+      if (git(state.project, ['merge-base', '--is-ancestor', baseline.head, 'HEAD']) === null) {
+        throw new Error('Task branch does not descend from the frozen base commit');
+      }
+      const committed = git(state.project, ['diff', '--name-only', '-z', `${baseline.head}..HEAD`]);
+      if (committed === null) throw new Error('Cannot read committed changes for scope enforcement');
+      const outsideCommits = committed.split('\0').filter(Boolean).filter(file => !inScope(task, file));
+      if (outsideCommits.length) throw new Error(`Out-of-scope commits: ${outsideCommits.join(', ')}`);
+    }
+  } else if (baseline.head !== current.head) {
+    throw new Error('Git HEAD changed: commits are not authorized by this task');
+  }
+  const outside = changed(baseline, current).filter(file => !inScope(task, file));
   if (outside.length) throw new Error(`Out-of-scope changes: ${outside.join(', ')}`);
 }
 
-export async function runTask(root, id, resume = false) {
-  const { store } = managedRoot(root);
-  const files = taskFiles(root, id), config = configFor(root), task = read(files.contract), state = read(files.state);
+export async function runTask(ws, id, resume = false) {
+  assertManaged(ws);
+  const store = ws.store, workRoot = ws.work;
+  const files = taskFiles(store, id), config = configFor(store), task = read(files.contract), state = read(files.state);
+  const taskSchema = Number(state.schema_version ?? 1);
+  const keyOf = value => observed(value, taskSchema);
+  if (state.worktree?.mode === 'attach' && (ws.mode !== 'worktree' || !sameDirectory(ws.work, state.project))) {
+    throw new Error(`Task ${id} belongs to the linked worktree at ${state.project}; run it there, not from the main checkout or another worktree`);
+  }
   validateContract(task);
   config.limits = state.limits; // task-wide counters/limits survive route changes and resume
   if (state.status === 'accepted_local') throw new Error('Task already accepted; use status. New changes require a new task.');
   if (!resume && state.status !== 'ready') throw new Error('Task already started; use resume to retain its counters and evidence');
-  if (resume) recoverLock(root);
-  const release = acquire(root, id);
+  if (resume) recoverLock(store);
+  const release = acquire(store, id);
   const configHash = hash(fs.readFileSync(path.join(store, 'config.json')));
   const baseline = read(path.join(files.dir, 'baseline.json'));
   const context = { state, files, save: () => write(files.state, state) };
@@ -385,8 +481,8 @@ export async function runTask(root, id, resume = false) {
     if (hash(fs.readFileSync(files.contract)) !== state.contract_hash || hash(fs.readFileSync(path.join(store, 'config.json'))) !== configHash) throw new Error('Contract/config changed; do not reuse this run to bypass limits');
     if (fs.existsSync(files.cancel)) throw new Error('Task cancelled');
     if (state.elapsed_ms >= config.limits.task_timeout_seconds * 1000) throw new Error('Task time budget exhausted');
-    const current = snapshot(root, task.scope);
-    if (current.fingerprint !== state.artifact) throw new Error('Source drift detected; old evidence cannot approve the changed artifact');
+    const current = snapshot(workRoot, task.scope);
+    if (keyOf(current) !== state.artifact) throw new Error('Source drift detected; old evidence cannot approve the changed artifact');
     return current;
   }
   async function call(role, name = role) {
@@ -398,25 +494,25 @@ export async function runTask(root, id, resume = false) {
     const directory = path.join(files.dir, 'attempts', `${String(state.attempts.length + 1).padStart(2, '0')}-${name}-${crypto.randomBytes(2).toString('hex')}`);
     fs.mkdirSync(directory, { recursive: true });
     const inputs = { prompt: path.join(directory, 'prompt.md'), schema: path.join(directory, 'schema.json'), final: path.join(directory, 'final.json') };
-    write(inputs.prompt, promptFor(role, task, state, files, before, profile)); write(inputs.schema, resultSchema);
+    write(inputs.prompt, promptFor(role, task, state, files, keyOf(before), profile)); write(inputs.schema, resultSchema);
     const native = invocation(profile, role, inputs);
-    const attempt = { role, name, directory, started_at: stamp(), model: profile.model ?? 'host-default', backend: profile.backend, ...modelSettings(profile), prompt_guidance: profile.prompt_guidance ?? null, artifact_before: before.fingerprint, status: 'running' };
+    const attempt = { role, name, directory, started_at: stamp(), model: profile.model ?? 'host-default', backend: profile.backend, ...modelSettings(profile), prompt_guidance: profile.prompt_guidance ?? null, artifact_before: keyOf(before), status: 'running' };
     state.calls_used++; state.attempts.push(attempt); context.save();
     console.log(`[${state.calls_used}/${config.limits.max_cli_calls}] ${name} -> ${profile.backend} (${attempt.model})`);
     const remaining = Math.max(1, Math.floor(config.limits.task_timeout_seconds - state.elapsed_ms / 1000));
-    const result = await execute(native.executable, native.args, root, path.join(directory, 'process'), Math.min(config.limits.call_timeout_seconds, remaining), context, native.stdin);
+    const result = await execute(native.executable, native.args, workRoot, path.join(directory, 'process'), Math.min(config.limits.call_timeout_seconds, remaining), context, native.stdin);
     attempt.process = result; attempt.finished_at = stamp(); attempt.status = 'failed'; context.save();
-    const after = snapshot(root, task.scope);
-    if (!['implement', 'repair'].includes(role) && after.fingerprint !== before.fingerprint) throw new Error(`${role} changed source despite its read-only assignment`);
-    scopeCheck(task, baseline, after);
+    const after = snapshot(workRoot, task.scope);
+    if (!['implement', 'repair'].includes(role) && keyOf(after) !== keyOf(before)) throw new Error(`${role} changed source despite its read-only assignment`);
+    scopeCheck(task, baseline, after, state);
     if (hash(fs.readFileSync(files.contract)) !== state.contract_hash || hash(fs.readFileSync(path.join(store, 'config.json'))) !== configHash) throw new Error('Agent modified contract/config');
     if (result.exit_code !== 0 || result.reason) throw new Error(`${role} process failed (${result.reason ?? result.exit_code}); ${result.stderr}`);
     const parsed = parseResult(fs.readFileSync(result.stdout, 'utf8'), inputs.final);
     write(path.join(directory, 'result.json'), parsed);
     if (parsed.verdict === 'blocked' || (role !== 'review' && parsed.verdict !== 'pass')) throw new Error(`${role} reported ${parsed.verdict}: ${parsed.summary}`);
-    attempt.status = 'completed'; attempt.artifact_after = after.fingerprint;
-    state.roles[name] = { result: parsed, directory, fingerprint: after.fingerprint };
-    state.artifact = after.fingerprint; context.save();
+    attempt.status = 'completed'; attempt.artifact_after = keyOf(after);
+    state.roles[name] = { result: parsed, directory, fingerprint: keyOf(after) };
+    state.artifact = keyOf(after); context.save();
   }
   async function checks() {
     const before = assertCurrent(); state.checks = [];
@@ -424,11 +520,11 @@ export async function runTask(root, id, resume = false) {
     fs.mkdirSync(directory);
     for (let index = 0; index < task.checks.length; index++) {
       const check = task.checks[index];
-      const cwd = fs.realpathSync(path.resolve(root, check.cwd ?? '.'));
-      if (!inside(root, cwd)) throw new Error(`Check cwd escaped project: ${cwd}`);
+      const cwd = fs.realpathSync(path.resolve(workRoot, check.cwd ?? '.'));
+      if (!inside(workRoot, cwd)) throw new Error(`Check cwd escaped project: ${cwd}`);
       const seconds = Math.min(config.limits.call_timeout_seconds, Math.max(1, Math.floor(config.limits.task_timeout_seconds - state.elapsed_ms / 1000)));
       const result = await execute(check.command, check.args, cwd, path.join(directory, String(index + 1)), seconds, context);
-      state.checks.push({ id: check.id, artifact: before.fingerprint, ...result }); context.save();
+      state.checks.push({ id: check.id, artifact: keyOf(before), ...result }); context.save();
       assertCurrent(); // checks may generate ignored build output, never silently alter source
     }
     return state.checks.every(check => check.exit_code === 0 && !check.reason);
@@ -442,7 +538,7 @@ export async function runTask(root, id, resume = false) {
     if (resume && fs.existsSync(files.cancel)) {
       fs.renameSync(files.cancel, path.join(files.dir, `cancel-history-${Date.now()}.json`));
     }
-    assertCurrent(); state.status = 'running'; state.failure = null; context.save(); writeHandoff(root, id);
+    assertCurrent(); state.status = 'running'; state.failure = null; context.save(); writeHandoff(ws, id);
     heartbeat = setInterval(tick, 1000);
     while (state.status === 'running') {
       assertCurrent();
@@ -464,7 +560,7 @@ export async function runTask(root, id, resume = false) {
         else repair('Independent review did not pass every acceptance criterion or has high/blocker findings');
       } else throw new Error(`Unknown phase: ${state.phase}`);
       context.save();
-      writeHandoff(root, id);
+      writeHandoff(ws, id);
     }
   } catch (error) {
     state.status = fs.existsSync(files.cancel) ? 'cancelled' : 'blocked'; state.failure = error.message;
@@ -473,7 +569,7 @@ export async function runTask(root, id, resume = false) {
     try {
       tick(); state.updated_at = stamp(); context.save();
       let observation;
-      try { observation = { current: snapshot(root, task.scope), error: null }; }
+      try { observation = { current: snapshot(workRoot, task.scope), error: null }; }
       catch (error) { observation = { current: null, error: error.message }; }
       if (observation.error) {
         if (state.status !== 'cancelled') state.status = 'blocked';
@@ -484,14 +580,15 @@ export async function runTask(root, id, resume = false) {
       const checksText = state.checks.map(check => `- ${check.id}: exit ${check.exit_code}${check.reason ? ` (${check.reason})` : ''}；${check.stdout}`).join('\n');
       write(path.join(files.dir, 'REPORT.md'), `# ${id}\n\n状态：${state.status}\n\n目标：${task.goal}\n\n改动：${actualChanges ? actualChanges.slice(0, 20).join('、') || '无源码修改' : '无法确定（快照失败）'}${actualChanges?.length > 20 ? '（其余见差异清单）' : ''}\n\n检查：\n${checksText || '- 尚未运行'}\n\n独立复核：${review?.result.summary.slice(0, 600) ?? '尚未完成'}\n\nCLI 调用：${state.calls_used}/${config.limits.max_cli_calls}；修复：${state.repairs_used}/${config.limits.max_repairs}；活动进程：${state.active.length}\n\n费用：unknown（未声称金额硬限制）\n\n产物：${state.artifact}\n\n问题：${state.failure ?? '无阻断问题；本地验收通过不等于提交或发布'}\n\n下一步：${state.status === 'accepted_local' ? '用户验收；提交/发布另行确认' : `排查上述问题后 resume ${id}；源码变化则另建任务`}\n\n原始证据：attempts/、checks-*、state.json。\n`);
       write(path.join(files.dir, 'changed-files.json'), actualChanges);
-      writeHandoff(root, id, observation);
+      writeHandoff(ws, id, observation);
     } finally { if (state.active.length === 0) release(); }
   }
   return state;
 }
 
-function doctor(root) {
-  const config = configFor(root);
+function doctor(ws) {
+  const config = configFor(ws.store);
+  const branch = branchOf(ws.work);
   const roles = Object.entries(config.roles).map(([role, profile]) => {
     let configurationError = null;
     try { validateProfile(profile); } catch (error) { configurationError = error.message; }
@@ -505,7 +602,8 @@ function doctor(root) {
       model_explicit: modelExplicit, model_source: modelExplicit ? 'explicit' : 'host-default',
       ready: Boolean(binary && result.status === 0 && modelReady && !configurationError), configuration_error: configurationError };
   });
-  return { version, roles, authentication: 'not_checked', provider_routing: 'not_checked', money_limit: 'not enforced', permissions: 'host policy; no bypass flags',
+  return { version, workspace: { mode: ws.mode, work: ws.work, main: ws.main, store: ws.store, branch: branch.branch, head: branch.head },
+    roles, authentication: 'not_checked', provider_routing: 'not_checked', money_limit: 'not enforced', permissions: 'host policy; no bypass flags',
     note: 'Binary/version discovery only. Authentication, model routing and output protocol require a real task.' };
 }
 
@@ -515,7 +613,9 @@ async function main(argv) {
   const project = path.resolve(flag('--project') ?? process.cwd());
   if (command === 'init') { console.log(JSON.stringify(initialize(project), null, 2)); return; }
   if (command === 'install') {
-    const target = path.join(fs.realpathSync(project), '.agents', 'skills', 'personal-dev-workflow');
+    const ws = workspace(project);
+    if (ws.mode === 'worktree') throw new Error(`Install the skill in the main checkout (${ws.main}), not in a worktree`);
+    const target = path.join(ws.work, '.agents', 'skills', 'personal-dev-workflow');
     if (fs.existsSync(target)) throw new Error('Target skill already exists; inspect its version before replacing it');
     // Node's native cpSync crashed on this Windows installation; copy only the
     // small regular-file skill tree and refuse symlinks instead of following them.
@@ -528,46 +628,48 @@ async function main(argv) {
       }
     }
     copy(skillRoot, target);
-    const launcher = path.join(project, 'pdw.ps1');
+    const launcher = path.join(ws.work, 'pdw.ps1');
     if (!fs.existsSync(launcher)) write(launcher, "$ErrorActionPreference = 'Stop'\n& node (Join-Path $PSScriptRoot '.agents\\skills\\personal-dev-workflow\\scripts\\pdw.mjs') @args\nexit $LASTEXITCODE\n");
-    const entry = path.join(project, 'AGENTS.md');
+    const entry = path.join(ws.work, 'AGENTS.md');
     const previous = fs.existsSync(entry) ? fs.readFileSync(entry, 'utf8') : '';
     const marker = '<!-- pdw-entry -->';
     if (!previous.includes(marker)) write(entry, `${previous}${previous.endsWith('\n') || !previous ? '' : '\n'}\n${marker}\nFor substantial PDW/multi-agent tasks, read .agents/skills/personal-dev-workflow/SKILL.md. Prepare the executable contract for the user and use the runtime; do not ask the user to hand-copy role chats.\n<!-- /pdw-entry -->\n`);
-    initialize(project);
+    initialize(ws.work);
     console.log(JSON.stringify({ installed: target, launcher, initialized: true, next: 'Ask your coding agent: use PDW to complete <goal>. Or run ./pdw.ps1 doctor' }, null, 2)); return;
   }
   if (command === 'help' || !command) {
-    console.log(`PDW ${version}: init | doctor | demo | new --from <contract.json> | plan <id> | run <id> | resume <id> | status [id] | handoff <id> | cancel <id> | view [--port <n>] [--open] | install --project <existing-dir>\nAll commands accept --project <dir>. demo invokes configured models for a read-only audit. view serves a read-only local dashboard. No dependency installation, commit, publish or destructive cleanup.`); return;
+    console.log(`PDW ${version}: init | doctor | demo | new --from <contract.json> | plan <id> | run <id> | resume <id> | status [id] | handoff <id> | cancel <id> | view [--port <n>] [--open] | install --project <existing-dir>\nAll commands accept --project <dir>. In a linked worktree the code root is that worktree while state stays in the main checkout; commits are allowed on the task branch only. demo invokes configured models for a read-only audit. view serves a read-only local dashboard. No dependency installation, push, publish or destructive cleanup.`); return;
   }
   if (command === 'view') {
     // 只读看板：读取 .pdw/tasks 与本机 Codex 用量，不写盘、不起模型。
     const port = Number(flag('--port') ?? 8891);
+    const ws = workspace(project);
     const { startViewer } = await import('./viewer.mjs');
-    startViewer({ project, port, open: args.includes('--open') });
+    startViewer({ project: ws.work, store: ws.store, port, open: args.includes('--open') });
     return;
   }
-  const { root, store } = managedRoot(project);
+  const ws = workspace(project);
+  const { work: root, store } = ws;
   if (command === 'demo') {
     initialize(root);
-    const created = createTask(root, path.join(skillRoot, 'assets', 'audit-task.json'));
+    const created = createTask(ws, path.join(skillRoot, 'assets', 'audit-task.json'));
     console.log(`Read-only live demo: ${created.id}`);
-    const state = await runTask(root, created.id);
+    const state = await runTask(ws, created.id);
     console.log(JSON.stringify({ id: created.id, status: state.status, failure: state.failure, report: path.join(created.directory, 'REPORT.md') }, null, 2));
     process.exitCode = state.status === 'accepted_local' ? 0 : 1; return;
   }
-  if (command === 'doctor') { const report = doctor(root); console.log(JSON.stringify(report, null, 2)); process.exitCode = report.roles.filter(r => r.role !== 'planner').every(r => r.ready) ? 0 : 1; return; }
-  if (command === 'new') { const from = flag('--from'); if (!from) throw new Error('new requires --from <contract.json>; the Skill prepares this contract for the user'); console.log(JSON.stringify(createTask(root, from), null, 2)); return; }
+  if (command === 'doctor') { const report = doctor(ws); console.log(JSON.stringify(report, null, 2)); process.exitCode = report.roles.filter(r => r.role !== 'planner').every(r => r.ready) ? 0 : 1; return; }
+  if (command === 'new') { const from = flag('--from'); if (!from) throw new Error('new requires --from <contract.json>; the Skill prepares this contract for the user'); console.log(JSON.stringify(createTask(ws, from), null, 2)); return; }
   const id = args.shift();
   if (command === 'status' && !id) {
-    const tasks = fs.readdirSync(path.join(store, 'tasks')).map(name => read(taskFiles(root, name).state));
+    const tasks = fs.readdirSync(path.join(store, 'tasks')).map(name => read(taskFiles(store, name).state));
     console.log(JSON.stringify(tasks.map(s => ({ id: s.id, status: s.status, phase: s.phase, calls_used: s.calls_used, failure: s.failure })), null, 2)); return;
   }
-  const files = taskFiles(root, id);
-  if (command === 'handoff') { console.log(JSON.stringify(writeHandoff(root, id), null, 2)); return; }
-  if (command === 'status') { const state = read(files.state), current = snapshot(root, read(files.contract).scope); console.log(JSON.stringify({ ...state, evidence_current: current.fingerprint === state.artifact, snapshot_coverage: current.coverage }, null, 2)); return; }
+  const files = taskFiles(store, id);
+  if (command === 'handoff') { console.log(JSON.stringify(writeHandoff(ws, id), null, 2)); return; }
+  if (command === 'status') { const state = read(files.state), current = snapshot(state.project ?? root, read(files.contract).scope); console.log(JSON.stringify({ ...state, evidence_current: observed(current, state.schema_version) === state.artifact, snapshot_coverage: current.coverage }, null, 2)); return; }
   if (command === 'plan') {
-    const task = read(files.contract), config = configFor(root); validateContract(task);
+    const task = read(files.contract), config = configFor(store); validateContract(task);
     const roles = [...(task.planner ? ['planner'] : []), 'scan', 'test-plan', ...(task.mode === 'develop' ? ['implement'] : []), 'review'];
     console.log(JSON.stringify({ id, goal: task.goal, mode: task.mode, scope: task.scope, acceptance: task.acceptance, checks: task.checks,
       roles: Object.fromEntries(roles.map(role => [role, config.roles[role]])), limits: config.limits, cost: config.cost,
@@ -575,7 +677,7 @@ async function main(argv) {
   }
   if (command === 'cancel') { const state = read(files.state); if (state.status !== 'running') throw new Error('No running task to cancel; inspect status/resume'); write(files.cancel, { requested_at: stamp() }); console.log('Cancellation requested; wait for state.active=[] before resuming'); return; }
   if (command === 'run' || command === 'resume') {
-    const state = await runTask(root, id, command === 'resume'); console.log(JSON.stringify({ id, status: state.status, failure: state.failure, report: path.join(files.dir, 'REPORT.md') }, null, 2)); process.exitCode = state.status === 'accepted_local' ? 0 : 1; return;
+    const state = await runTask(ws, id, command === 'resume'); console.log(JSON.stringify({ id, status: state.status, failure: state.failure, report: path.join(files.dir, 'REPORT.md') }, null, 2)); process.exitCode = state.status === 'accepted_local' ? 0 : 1; return;
   }
   throw new Error(`Unknown command: ${command}`);
 }

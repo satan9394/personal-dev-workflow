@@ -36,24 +36,24 @@
 
 ## 2. 版本口径
 
-- 发布号 = `package.json` 的 `version`（现 `2.0.1`，**不再变动**）；研究版 = `pdwSkillVersion`（现 `1.3.3-local`）。
+- 发布号 = `package.json` 的 `version`（现 `2.0.1`，**不再变动**）；研究版 = `pdwSkillVersion`（现 `1.4.0-local`）。
 - **不发版本**：不打 tag、不发 GitHub Release、不推 npm；分发口径 = `main` 滚动（见 `RELEASING.md`）。
 - Skill `SKILL.md` frontmatter = `name` + `description` + 出处 `metadata`（`version` / `repository` / `skill-path` /
   `branch` / `updated`；`metadata` 是 Agent Skills 规范认可的字段），正文写研究版；`argument-hint` 这类
   Claude Code 专有字段仍然禁止（会让 claude.ai 上传失败）。
 - **重切同版本号**：上游 1.3.3-local 于 2026-10-17 与 2026-10-18 各就地重切一次、版本串始终未动，所以"看版本串"
   完全不足以判新旧，**比对一律按逐文件 sha256**（丙区与项目副本的刷新流程本来就是散列比对，见 §5、§7）。
+  `1.4.0-local` 起改用新版本号区分能力变更，但同版本号内再次重切时仍按散列判断。
 - 校验器口径：源版本比 `pdwSkillVersion`，发布号比 `package.json`。
 
 ## 3. 与研究发布包的关系（**以研究包为准**，2026-10-17 起）
 
 研究项目（下文记作 `<research-repo>`）是上游，交付包在 `artifacts/releases/<version>/`
-（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.3.3-local`**，已**就地重切四次**
-（版本号始终不变、包字节每轮都变）：最初 `25da41f8…` → 2026-10-17 重切为 `38167ace…` →
-2026-10-18 第二次重切为 `e61a3307…` → 2026-10-24 第三次重切为 `1479e0a1…` → 2026-10-26 第四次重切为
-`0e70e78e…`（新增只读看板 `scripts/viewer.mjs` + `assets/viewer.html`，共 11 文件）；各代包字节都在本仓库
-`.pdw/upstream-package-prepack/`（`…-pre-repack-20261017.zip` / `…-pre-repack2-20261018.zip` /
-`…-pre-repack3-20261024.zip` / `…-pre-repack4-20261026.zip`）留档。
+（ZIP + `manifest.json`，逐文件 SHA-256）。当前上游版本 = **`1.4.0-local`**（`91e2f751…`，11 文件）——
+工作树附着模式；上一代 `1.3.3-local` 经四次就地重切（`25da41f8…` → `38167ace…` → `e61a3307…` →
+`1479e0a1…` → `0e70e78e…`），各代包字节都在本仓库 `.pdw/upstream-package-prepack/`
+（`…-pre-repack-20261017.zip` / `…-pre-repack2-20261018.zip` / `…-pre-repack3-20261024.zip` /
+`…-pre-repack4-20261026.zip`）留档。
 
 - **规则：以研究包为准做适配**（2026-10-17 用户口径，取代先前"只作对照基准、不覆盖"）。
   适配 = 包内容原样落地 + **只保留仓库布局所必需的改动**：
@@ -89,10 +89,10 @@ node archive/tools/run-tests.mjs
 ### 步骤 1 · 适配上游包并刷新丙区读取位
 
 ```powershell
-# 1) 解包上游（以 1.3.3-local 为例）
-$tmp = "$env:TEMP\opencode\p133"
+# 1) 解包上游（以 1.4.0-local 为例）
+$tmp = "$env:TEMP\opencode\p140"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-tar -xf "<research-repo>/artifacts/releases/1.3.3-local/personal-dev-workflow-1.3.3-local.zip" -C $tmp
+tar -xf "<research-repo>/artifacts/releases/1.4.0-local/personal-dev-workflow-1.4.0-local.zip" -C $tmp
 # 2) 备份现有仓库副本（可回溯，不放回收站就算备份）
 $bak = ".pdw\skill-adaptation-<日期>\pre-package-baseline"
 New-Item -ItemType Directory -Force -Path $bak | Out-Null; Copy-Item 'skills\personal-dev-workflow\*' $bak -Recurse -Force
@@ -105,21 +105,21 @@ Copy-Item "$tmp\personal-dev-workflow\*" 'skills\personal-dev-workflow' -Recurse
 Copy-Item 'skills\personal-dev-workflow\*' "$env:USERPROFILE\.agents_four_skills\personal-dev-workflow" -Recurse -Force
 ```
 
-参考值（2026-10-26 第四次重切后，`1.3.3-local`，sha256 前 10 位；内容变动时同步更新）：
+参考值（2026-10-31 `1.4.0-local` 首次出包后，sha256 前 10 位；内容变动时同步更新）：
 
-| 文件 | 上游 1.3.3 包 | 本项目 / 丙区 |
+| 文件 | 上游 1.4.0 包 | 本项目 / 丙区 |
 | --- | --- | --- |
-| SKILL.md | `80bc622c…` | 同（未改） |
+| SKILL.md | `41cfa4f6…` | 同（未改） |
 | agents/openai.yaml | `f8cfe876…` | 同（未改） |
 | assets/audit-task.json | `fe2d91b6…` | 同（未改） |
 | assets/viewer.html | `8d6d0ca9…` | 同（未改） |
-| references/runtime.md | `ade86d3c…` | 同（未改） |
+| references/runtime.md | `1e3a75d0…` | 同（未改） |
 | scripts/drivers.mjs | `4821702b…` | 同（未改） |
-| scripts/pdw.mjs | `fb461d7b…` | 同（未改） |
+| scripts/pdw.mjs | `0d01595d…` | 同（未改） |
 | scripts/update.mjs | `94fd25fd…` | 同（未改） |
-| scripts/viewer.mjs | `3a489ced…` | 同（未改） |
+| scripts/viewer.mjs | `ae54e923…` | 同（未改） |
 | scripts/drivers.test.mjs | `dc6ecbc0…` | `376b010c…`（改一处：仓库布局探测） |
-| scripts/pdw.test.mjs | `133ff677…` | `ccd98536…`（改一处：仓库布局探测） |
+| scripts/pdw.test.mjs | `7e235e54…` | `3b9d309f…`（改一处：仓库布局探测） |
 
 **期望的比对结论**：11 个文件里只有 `scripts/drivers.test.mjs`、`scripts/pdw.test.mjs` 各差 1 行（布局探测），
 其余逐字节相同。
@@ -198,7 +198,7 @@ foreach ($r in '~\.claude\skills','~\.dsh\skills','~\.gemini\antigravity\skills'
 
 **本机曾配置的读取位与项目副本清单属本机信息，见本地治理笔记**；本节只保留中性口径与可迁移的流程教训。
 
-**使用位 = 丙区，且只有这一个根**：读取位 `~\.agents_four_skills\personal-dev-workflow`（当前 `1.3.3-local` 内容 + 两处布局探测），**它是 GitHub `main` 的本地镜像，不是独立真身**（见下）。
+**使用位 = 丙区，且只有这一个根**：读取位 `~\.agents_four_skills\personal-dev-workflow`（`1.4.0-local` 尚未铺开，当前仍是 `1.3.3-local` 内容 + 两处布局探测），**它是 GitHub `main` 的本地镜像，不是独立真身**（见下）。
 项目级同步源与此不同：见 §7（GitHub main）；**四个 agent 的读法定义见 §1，此处不重复**。
 **不再有 junction**：四个 agent 技能根里指向丙区的链接已于 2026-10-17 全部清掉（进回收站），四个根下的丙区条目数现为 **0**。仓库与丙区两份 **8/8 逐字节一致、行尾全 LF**。
 本技能已从 skills-manager 库移除；dsh 原来的 2.0.0 真副本备份在本仓库
@@ -319,6 +319,7 @@ model-infra-kit `AGENTS.md` 里那条带日期的 2026-10-16 验证记录）保�
 
 已按此固定配置的项目（2026-10-17，均 `1.3.3-local`、`doctor exit 0`）：
 `finquant-hub`、`Vessel_Harness`、`model-infra-kit`、`remote-job-aggregator`。
+`1.4.0-local` 出包后需各自跑一次 `update.mjs` 才能升到工作树模式；升级前先按 §5 核对该项目没有活动 `run.lock`。
 
 **换配置的条件**：只在用户明确要求时（换源、换布局、换备份位置等）；换完同步更新本节、各项目的
 `pdw-skill-sync` 块与 `CHANGELOG.md`。

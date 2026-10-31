@@ -2,16 +2,16 @@
 name: personal-dev-workflow
 description: "Run cost-aware multi-agent project work with OpenCode/DeepSeek, Codex, and optional AGY: create an executable task contract, dispatch isolated role sessions, run checks, review independently, and resume from recorded evidence. Use for substantial implementation, investigation, or explicit PDW workflow requests."
 metadata:
-  version: "1.3.3-local"
+  version: "1.4.0-local"
   repository: "https://github.com/satan9394/personal-dev-workflow"
   skill-path: "skills/personal-dev-workflow"
   branch: "main"
-  updated: "2026-10-26"
+  updated: "2026-10-31"
 ---
 
 # Personal Dev Workflow — 可执行的项目协作
 
-版本：1.3.3-local；说明语言：zh-CN。
+版本：1.4.0-local；说明语言：zh-CN。
 
 这是既有 PDW 的项目级升级版：保留契约、验证、交接、有限修复；增加真实 CLI 接力。程序为本 Skill 的 `scripts/pdw.mjs`，以 Skill 的绝对位置调用，不假定当前目录含 scripts。
 
@@ -30,6 +30,10 @@ metadata:
 5. 程序实际执行验收命令；失败最多定向修复一次，再失败即停止。遇到范围变化、环境阻塞或不支持的输出协议，保留原始结果并交接，不能凭文字宣布通过。
 6. 查看 `status <id>` 和任务目录的 REPORT.md。想看“现在跑到哪、谁在干、用的什么模型”，用 `view` 起只读看板（默认 8891 端口，前台运行，Ctrl+C 结束）；它只读 `.pdw/tasks/` 与本机 Codex 会话日志，不写盘、不起模型。每个阶段程序自动生成 HANDOFF.md，命令与换对话流程见 [上下文接续](references/runtime.md#上下文接续与文档维护)。中断后用 `resume <id>`；停止用 `cancel <id>`。切会话不重置额度，不通过另建任务规避原任务限额。
 
+## 工作树模式
+
+若你在该仓库的一棵 linked worktree 里运行，程序自动把代码根设为该工作树、状态根仍留在主 checkout 的 `.pdw`；新任务记录任务分支与基线提交，允许在该分支上提交，但禁止 push、合并、rebase、切分支和越界提交。主 checkout 未初始化、或工作树自己带 `.pdw` 时直接拒绝，不静默分叉状态。程序不创建、也不删除工作树——创建与清理交给宿主的工作树工具（如 OpenCode 的 worktree 操作）或你手工执行。
+
 ## 按目标模型交接
 
 分派前先把用户需求整理为目标、可观察的验收行为、范围和关键假设。计划是实现建议，不覆盖用户目标；会改变验收的歧义才询问用户，其余由协调者决定。不能只把规划聊天或一句“按计划开发”转发给执行者。
@@ -44,7 +48,7 @@ metadata:
 
 - 同一路径一个实现者；扫描/复核只读；对照当前产物检查，旧证据不能批准新修改。
 - UI 任务的契约必须包含真实浏览器操作证据；build/curl 不替代业务验收。运行工具不能凭空提供浏览器能力。
-- 不自行 commit/push/merge/send/deploy/publish/delete；用户确认点保留。已有授权按其实际范围执行。
+- 不自行 push/merge/send/deploy/publish/delete；默认也不 commit，唯一例外是工作树模式下对任务分支的提交（见「工作树模式」）。用户确认点保留，已有授权按其实际范围执行。
 - CLI 权限继续由宿主控制，程序不传跳过权限参数。源码范围检查是执行后检测，不是文件系统沙箱。
 - 核对 status/handoff 的 snapshot_coverage；项目根被 Git 忽略或 Git 列表为空时使用文件系统快照，显式任务 scope 不受 Git ignore 隐藏。不能观察的保留目录和链接路径须先调整范围，不能把空覆盖当成通过。
 - 时间与 CLI 启动次数有程序上限；金额/Token 总上限没有提供方证据时标 unknown，不能宣称硬限制。

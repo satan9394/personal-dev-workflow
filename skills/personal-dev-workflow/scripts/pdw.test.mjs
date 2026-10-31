@@ -16,7 +16,7 @@ const mock = path.join(evidence, 'fake-cli.mjs');
 fs.writeFileSync(mock, `
 import fs from 'node:fs';
 import path from 'node:path';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 const args=process.argv.slice(2), mode=args.shift();
 if(args.includes('--version')){console.log('fixture');process.exit(0)}
 const index=args.indexOf('--file');
@@ -34,6 +34,10 @@ if(mode==='hang'){
   if(mode==='scope')fs.writeFileSync('outside.txt','unexpected');
   if(mode==='ignored-scope')fs.writeFileSync('.agents/outside.txt','unexpected');
   if(mode==='linked-scope')fs.symlinkSync(path.resolve('target-dir'),'source-dir',process.platform==='win32'?'junction':'dir');
+  const commit=()=>{const g=(...a)=>spawnSync('git',a,{stdio:'ignore'});g('add','-A');g('commit','-qm','fixture');};
+  if(mode==='commit-in-scope')commit();
+  if(mode==='commit-out'){fs.writeFileSync('outside.txt','leak');commit();}
+  if(mode==='switch-branch'){spawnSync('git',['checkout','-q','-b','other'],{stdio:'ignore'});commit();}
  }
  if(mode==='mutating-review'&&role==='review')fs.writeFileSync('result.txt','mutated');
  if(mode==='mutating-ignored-review'&&role==='review')fs.writeFileSync('.agents/inside.txt','mutated');
@@ -69,6 +73,42 @@ function setup(name, mode = 'success', limits = {}, audit = false, options = {})
   const id = JSON.parse(command(root, ['new', '--from', contractFile]).stdout).id;
   const stateFile = path.join(root, '.pdw', 'tasks', id, 'state.json');
   return { root, id, state: () => JSON.parse(fs.readFileSync(stateFile, 'utf8')), config, stateFile };
+}
+
+/** A real repository plus a linked worktree, used by the worktree-mode cases. */
+function gitRepo(name, branch = 'main') {
+  const root = path.join(evidence, name);
+  fs.mkdirSync(root, { recursive: true });
+  const run = (cwd, ...args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, `${args.join(' ')}\n${result.stderr}`);
+    return result.stdout.trim();
+  };
+  run(root, 'init', '--quiet');
+  run(root, 'config', 'user.email', 'fixture@example.com');
+  run(root, 'config', 'user.name', 'fixture');
+  run(root, 'checkout', '-q', '-b', branch);
+  fs.writeFileSync(path.join(root, '.gitignore'), '.pdw/\n');
+  fs.writeFileSync(path.join(root, 'README.md'), 'base\n');
+  run(root, 'add', '-A');
+  run(root, 'commit', '-q', '-m', 'base');
+  return { root, run };
+}
+
+function worktreeFixture(name, mode = 'success', { branch = 'task/fixture', init = true, detach = false, baseBranch = 'main' } = {}) {
+  const { root, run } = gitRepo(`${name}-main`, baseBranch);
+  const work = path.join(evidence, `${name}-work`);
+  run(root, 'worktree', 'add', '--quiet', ...(detach ? ['--detach', work] : ['-b', branch, work]));
+  if (init) command(root, ['init']);
+  const profile = { backend: 'opencode', executable: process.execPath, args: [mock, mode], model: 'fixture/deepseek' };
+  const config = { roles: { scan: profile, 'test-plan': profile, implement: profile, review: profile }, limits: {
+    max_cli_calls: 8, max_repairs: 1, call_timeout_seconds: 10, task_timeout_seconds: 60 }, cost: { status: 'unknown' } };
+  if (init) fs.writeFileSync(path.join(root, '.pdw', 'config.json'), JSON.stringify(config));
+  const contract = path.join(evidence, `${name}-contract.json`);
+  fs.writeFileSync(contract, JSON.stringify({ goal: 'Create result.txt containing correct in the task worktree', mode: 'develop', scope: ['result.txt'],
+    acceptance: [{ id: 'AC1', description: 'result.txt contains correct' }],
+    checks: [{ id: 'contents', command: process.execPath, args: ['-e', "const fs=require('node:fs');if(!fs.readFileSync('result.txt','utf8').startsWith('correct'))process.exit(3)"] }] }));
+  return { root, work, run, contract };
 }
 async function test(name, action) {
   const started = Date.now();
@@ -510,6 +550,95 @@ await test('the updater refuses a source that has no skill directory', () => {
   const result = spawnSync(process.execPath, [path.join(path.dirname(path.dirname(runtime)), 'scripts', 'update.mjs'), '--project', project, '--source', empty, '--json'], { encoding: 'utf8', timeout: 120000 });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Skill directory not found/);
+});
+
+await test('a linked worktree keeps task state in the main checkout', () => {
+  const t = worktreeFixture('wt-attach');
+  const id = JSON.parse(command(t.work, ['new', '--from', t.contract]).stdout).id;
+  const stateFile = path.join(t.root, '.pdw', 'tasks', id, 'state.json');
+  assert.ok(fs.existsSync(stateFile), 'state must live in the main checkout');
+  assert.equal(fs.existsSync(path.join(t.work, '.pdw')), false, 'the worktree must not own .pdw');
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  const baseline = JSON.parse(fs.readFileSync(path.join(path.dirname(stateFile), 'baseline.json'), 'utf8'));
+  assert.equal(state.schema_version, 2);
+  assert.equal(state.project, fs.realpathSync(t.work));
+  assert.equal(state.worktree.mode, 'attach');
+  assert.equal(state.worktree.branch, 'task/fixture');
+  assert.equal(state.worktree.base_head, baseline.head);
+  assert.equal(state.artifact, baseline.content);
+});
+
+await test('a linked worktree without main state refuses to start', () => {
+  const t = worktreeFixture('wt-no-state', 'success', { init: false });
+  const refused = command(t.work, ['new', '--from', t.contract], 1);
+  assert.match(refused.stderr, /not initialized in the main checkout/);
+  assert.equal(fs.existsSync(path.join(t.root, '.pdw')), false, 'must not create state in the worktree');
+});
+
+await test('a worktree that owns its own .pdw is refused', () => {
+  const t = worktreeFixture('wt-stray');
+  fs.mkdirSync(path.join(t.work, '.pdw'));
+  const refused = command(t.work, ['new', '--from', t.contract], 1);
+  assert.match(refused.stderr, /has its own \.pdw/);
+});
+
+await test('commits on the task branch inside scope are accepted', () => {
+  const t = worktreeFixture('wt-commit', 'commit-in-scope');
+  const id = JSON.parse(command(t.work, ['new', '--from', t.contract]).stdout).id;
+  command(t.work, ['run', id]);
+  const state = JSON.parse(fs.readFileSync(path.join(t.root, '.pdw', 'tasks', id, 'state.json'), 'utf8'));
+  assert.equal(state.status, 'accepted_local', state.failure);
+  assert.equal(t.run(t.work, 'rev-list', '--count', 'HEAD'), '2');
+});
+
+await test('a commit outside scope is rejected and the worktree is kept', () => {
+  const t = worktreeFixture('wt-commit-out', 'commit-out');
+  const id = JSON.parse(command(t.work, ['new', '--from', t.contract]).stdout).id;
+  command(t.work, ['run', id], 1);
+  const state = JSON.parse(fs.readFileSync(path.join(t.root, '.pdw', 'tasks', id, 'state.json'), 'utf8'));
+  assert.match(state.failure, /Out-of-scope commits: outside\.txt/);
+  assert.ok(fs.existsSync(t.work), 'the blocked worktree must stay inspectable');
+});
+
+await test('a worktree on the default branch is refused', () => {
+  const t = worktreeFixture('wt-main', 'success', { branch: 'main', baseBranch: 'base' });
+  const refused = command(t.work, ['new', '--from', t.contract], 1);
+  assert.match(refused.stderr, /Refusing to run a task on main/);
+});
+
+await test('a detached worktree is refused', () => {
+  const t = worktreeFixture('wt-detached', 'success', { detach: true });
+  const refused = command(t.work, ['new', '--from', t.contract], 1);
+  assert.match(refused.stderr, /detached HEAD/);
+});
+
+await test('switching the task branch mid-run is rejected', () => {
+  const t = worktreeFixture('wt-switch', 'switch-branch');
+  const id = JSON.parse(command(t.work, ['new', '--from', t.contract]).stdout).id;
+  command(t.work, ['run', id], 1);
+  const state = JSON.parse(fs.readFileSync(path.join(t.root, '.pdw', 'tasks', id, 'state.json'), 'utf8'));
+  assert.match(state.failure, /Task branch changed: expected task\/fixture, found other/);
+});
+
+await test('legacy schema 1 tasks keep the head-bound artifact', () => {
+  const t = setup('legacy-schema');
+  const baselineFile = path.join(path.dirname(t.stateFile), 'baseline.json');
+  const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
+  const state = t.state();
+  state.schema_version = 1; state.artifact = baseline.fingerprint;
+  fs.writeFileSync(t.stateFile, JSON.stringify(state, null, 2));
+  fs.writeFileSync(baselineFile, JSON.stringify({ ...baseline, schema_version: 1 }, null, 2));
+  const status = JSON.parse(command(t.root, ['status', t.id]).stdout);
+  assert.equal(status.evidence_current, true);
+});
+
+await test('a worktree task cannot run from the main checkout', () => {
+  const t = worktreeFixture('wt-cross-root');
+  const id = JSON.parse(command(t.work, ['new', '--from', t.contract]).stdout).id;
+  const status = JSON.parse(command(t.root, ['status', id]).stdout);
+  assert.equal(status.evidence_current, true);
+  const refused = command(t.root, ['run', id], 1);
+  assert.match(refused.stderr, /belongs to the linked worktree/);
 });
 
 fs.writeFileSync(path.join(evidence, 'results.json'), JSON.stringify({ scope: 'Fixture CLI orchestration, not live provider integration', outcomes }, null, 2));
