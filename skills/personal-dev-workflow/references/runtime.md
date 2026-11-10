@@ -110,6 +110,8 @@ OpenCode TUI 的 `/effort`（`/thinking`、`/variants`）选择模型 variant。
 
 2026-10-17 核对官方 v2.0.32 源码：[TUI effort 别名](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/tui/src/app.tsx#L950)、[后台模型变体解析](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/cli/src/run/run.ts#L176)。TUI 和 run 属于同一安装的不同入口；界面能切换不意味着已有 PDW 配置自动继承。
 
+后台角色会话固定带 `--archived`：`run` 建出的会话直接归档，不进 app 收件箱与会话列表，脚本跑任务时桌面端不会冒出一串半成品会话。该参数在 OpenCode 2.2.7 的 `run --help` 里实测存在（2026-11-08 起 driver 无条件附加）；旧版本没有它时报 unknown option，按普通角色失败处理，先升级 OpenCode，不要退回到「跑完再手动归档」或改成 TUI 会话。
+
 新建配置时，init 对识别到的模型读取 OpenCode TUI 状态目录 model.json 的 variant 映射，将该模型已保存的变体固定到项目配置。状态目录为 XDG_STATE_HOME/opencode，默认 ~/.local/state/opencode。已有配置、显式 #variant 和缺失状态均不会被覆盖；之后 TUI 改选不会自动改变已有 PDW 项目。升级旧项目时由协调者核对该项目是否有活动任务，备份配置后只调整相关角色，不重置任务或预算。
 
 这不是默认模型切换。只有账户/宿主确实支持该模型与等级时才使用。程序检查字段格式，reasoning_effort 仅支持 Codex/OpenCode；认可等级名称不等于每个模型都支持。未配置时保留宿主默认，不自动提高等级或换模型。doctor、prompt 与 attempt 记录 effective_model、reasoning_effort 和 OpenCode variant，它们是请求设置，不是提供方采用证明；doctor 不执行认证或真实请求。原始前缀 args 不得覆盖显式 model/effort。

@@ -225,6 +225,12 @@ git clone --depth 1 --branch main https://github.com/satan9394/personal-dev-work
 比对同时要看本仓库本地那份：基线是**三方一致**（GitHub `main` / 丙区 / 本仓库 `skills/personal-dev-workflow/`），
 2026-10-17 实测 `8/8` 逐字节一致、行尾全 LF；同日重切后为 **`9/9`**（SHA 前 10 位见步骤 1 的表）。
 
+**2026-11-10 三方重新对齐（一次差点静默回滚）**：丙区在 2026-11-08 被直接改过一处——`drivers.mjs` /
+`drivers.test.mjs` 给 OpenCode 角色会话加 `--archived`（见本地笔记 11-08 那条 2.2.6 适配）——而当时仓库与
+GitHub `main` 都还是旧字节，按上面的步骤从 `main` 刷新就会把这处修复回滚。现已把同一改动回灌本仓库并于 2026-11-10 推送到 `main`，两处脚本、`references/runtime.md` 与丙区
+重新对齐（`drivers` 16/16）。教训：丙区不是工作位（见上两段），
+临时直改必须当轮回灌仓库并写进 `CHANGELOG.md`，否则下一次镜像刷新就是一次静默回滚。
+
 **本轮（2026-10-17 重切后）的刷新**：丙区与四处项目副本再刷到重切后的 **9 文件**版本（`1.3.3-local`，版本串未动，
 按逐文件 sha256 判定）：旧副本备份在各项目 `.pdw/skill-upgrade-20261017-recut/`，四处 `doctor` 均 `exit 0`；
 各自的 `AGENTS.md` 里 `<!-- pdw-skill-sync -->` 块的"8 文件"字样同步改为 9。下面那轮 8 文件的记录保留为历史。

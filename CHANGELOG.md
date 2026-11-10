@@ -3,6 +3,28 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-11-10 — Back-port the OpenCode `--archived` flag for scripted role sessions
+
+### Skill content
+
+- **Scripted role sessions are created archived.** The OpenCode backend of `invocation()` now passes
+  `--archived`, so every `run` PDW starts stays out of the desktop app's inbox and session lists. Verified
+  against `opencode run --help` on 2.2.7; a build without the flag fails with an unknown-option error and
+  is reported as an ordinary role failure.
+- `drivers.test.mjs` gains one assertion inside the existing OpenCode case (`--archived` present,
+  `--config` still absent); the suite stays 16/16.
+- `references/runtime.md` states the flag, the 2.2.7 check and the upgrade-first rule.
+
+### Distribution
+
+- The same change has been live in the 丙区 read area (`~\.agents_four_skills\personal-dev-workflow`)
+  since 2026-11-08, edited there directly while the repository and GitHub `main` still carried the old
+  bytes — a mirror refresh from `main` would have reverted it silently. 2026-11-10 back-ports it here and
+  pushes it, so all three sides (repository, `main`, 丙区) match again at 11/11 files.
+- It is a **second local adaptation** beside the two repository-layout probes: the upstream research
+  package does not carry it yet and needs the same patch at its next re-cut.
+- Project copies pick the flag up on their next `update.mjs`; nothing else in them changes.
+
 ## [main] — 2026-10-31 — `1.4.0-local`: worktree attach mode
 
 ### Skill content (new research version)
