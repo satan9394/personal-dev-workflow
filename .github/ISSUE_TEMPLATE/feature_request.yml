@@ -1,0 +1,27 @@
+name: 功能建议
+description: 提出新能力或改进
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 现在哪件事做不了或很难做？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的替代方案
+  - type: textarea
+    id: scope
+    attributes:
+      label: 影响面
+      description: 是否改变默认行为、公开接口或已存数据？
