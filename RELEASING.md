@@ -13,9 +13,8 @@ this repository ships the Skill on a **rolling `main`** branch.
 
 ## Why (2026-10-17)
 
-- 使用位已改为**丙区读取位**（`~\.agents_four_skills\`，是 GitHub `main` 的本地镜像；oc/dsh 原生注册该目录、
-  cc/agy 按需直读，**不再用 junction**，见 `DEPLOYMENT.md`），分发靠"push 到 `main` → 刷丙区 → 项目内按需复制"，
-  不再依赖 tag 或包注册表；
+- 分发链是四层的（仓库 → 丙区 `local` 源 → 中央副本 → 11 条 junction）：**明细只见 `DEPLOYMENT.md` §1**。
+  分发靠"push 到 `main` → 刷丙区 → 覆盖中央副本 → 校验"（§5.1 三步），不再依赖 tag 或包注册表；
 - 上游（研究项目 `人机协作开发工作流研究`）按 `artifacts/releases/<version>/` 出包并直接同步过来，
   **以研究包为准做适配**，所以打 tag 只会制造第二套版本叙事；
 - 用户明确要求"只提交合并，不发布版本"。
@@ -38,16 +37,17 @@ node archive/tools/run-tests.mjs
 git add -A
 git commit -m "feat(skill): import research <version> …"
 git push origin main
-# 5. 刷新丙区读取位（它是 GitHub main 的本地镜像，四个 agent 随之生效）
+# 5. 刷新分发链：丙区（GitHub main 的本地镜像）→ 中央副本（agent 读位）→ verify-distribution
 #    push 完成后 clone --depth 1 --branch main 取远端子路径 skills/personal-dev-workflow/，
-#    与丙区那 9 个文件逐文件比 sha256：无差异什么都不改；有差异才先备份再整份覆盖。
-#    命令与边界见 DEPLOYMENT.md §5（丙区不再直接由本仓库复制）
+#    与丙区那 11 个文件逐文件比 sha256：无差异什么都不改；有差异才先备份再整份覆盖。
+#    然后把丙区 11 个文件覆盖到中央副本，跑 node scripts/verify-distribution.mjs（differing=0）。
+#    命令与边界见 DEPLOYMENT.md §5.1（丙区不是 agent 读位）
 ```
 
 ## Scope and current limitations
 
 - **A "release" here means a push to `main`.** Install path for other machines stays
-  `npx skills add satan9394/personal-dev-workflow`（**本机不用它**：本机的使用位是丙区读取位，见 `DEPLOYMENT.md`）。
+  `npx skills add satan9394/personal-dev-workflow`（**本机不用它**：本机的使用位是丙区 → 中央副本 → junction 链路，见 `DEPLOYMENT.md`）。
 - **No npm publishing**；旧 GitHub Packages 上的包（`@satan9394/dsh-personal-dev-workflow`）已于 2026-10-17 删除。
 - Do the push from a machine whose git identity is `satan9394 <satan9394@users.noreply.github.com>`
   so no personal email lands in commit metadata.

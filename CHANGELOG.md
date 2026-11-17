@@ -15,7 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
   `fs.realpathSync.native` of both sides; when the invocation looks like this script but cannot be
   recognised, it prints an error and exits 1 instead of exiting 0 doing nothing.
 - `pdw.test.mjs` gains a case that builds a real junction to the skill and runs `status` through it,
-  asserting the exit code and stdout are identical to the real path: 61 → 62 cases.
+  asserting the exit code and stdout are identical to the real path: 61 → 62 cases (suite 62/62).
 
 ### Distribution
 
@@ -31,6 +31,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
   still there (`id=d3669121-…`, `enabled=1`), but no `skills` CLI is on PATH, so the central copy is
   refreshed by hand — §5.1 spells out the three steps: refresh 丙区 → overwrite the central copy →
   run `verify-distribution`.
+
+### Repository tooling
+
+- `.opencode/commands/pdw-*.md` adds eight read-only project-audit commands imported from the
+  cc-switch prompt library (`frame`, `root`, `impact`, `archaeology`, `newcomer`, `slop`,
+  `doc-truth`, `retro`) plus a `pdw-audit` orchestrator. They are repository-local development
+  tooling, not part of the published Skill (`package.json.files` does not include `.opencode/`).
+- README and RELEASING now describe the four-layer chain that actually exists (丙区 `local` source →
+  central copy → 11 junctions), and README's fixture count is corrected from 38 to 62.
 
 ## [main] — 2026-11-16 — Config validation fails closed
 

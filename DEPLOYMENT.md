@@ -5,47 +5,47 @@
 > D-0082（执行细则）与 D-0085（丙区取代库 + 1.3.3 适配）；治理规则见仓库根 `AGENTS.md`。
 > 最后核对日期：2026-11-17（分发链路实测后改口径；D-0085 的"丙区取代库"在落地上未成立，见 §1 与 §5）。
 
-## 1. 四层职责（唯一权威只有一处）
+## 1. 分发链（本节是唯一权威）
 
 ```
-本仓库 skills/personal-dev-workflow/            ← 唯一开发位（技能内容的权威来源是研究包，适配口径见 §3；agent 不直接读它）
-        │  push 到 GitHub `main`（无库、无 deploy 命令）；丙区从 main 取远端刷新
+本仓库 skills/personal-dev-workflow/            ← 唯一开发位（内容权威来源是研究包，适配口径见 §3；agent 不直接读它）
+        │  push 到 GitHub `main`
         ▼
-~\.agents_four_skills\personal-dev-workflow     ← 丙区：skills-manager 记录里的 **local 源**（source_ref 就指它）
-        │  人工覆盖（PATH 上没有 skills CLI）：11 个文件复制进中央副本，见 §5
+~\.agents_four_skills\personal-dev-workflow     ← 丙区 = skills-manager 的 `local` 源（不是 agent 读位）
+        │  人工覆盖（PATH 上没有 skills CLI）
         ▼
-~\.skills-manager\skills\personal-dev-workflow  ← **中央副本**：各 agent 真正读到的内容就是这一份
-        │  skills-manager 为每个 agent 建 junction 指过来
+~\.skills-manager\skills\personal-dev-workflow  ← 中央副本 = 各 agent 真正读到的内容
+        │  skills-manager 建的 junction
         ▼
-~\.claude\skills、~\.config\opencode\skills 等 11 处 ← agent 技能目录（都是指向中央副本的 junction，明细见下）
+11 个 agent 技能目录                             ← 全部是指向中央副本的 junction
         ▼
 <项目>/.agents/skills/personal-dev-workflow/    ← 项目级独立副本（长期项目需要时复制）
 ```
 
-- **真实链路是四层（2026-11-17 实测）**：仓库（开发位）→ 丙区（skills-manager 的 local 源）→
-  `~\.skills-manager\skills\personal-dev-workflow`（**中央副本**，各 agent 读的就是它）→ 各 agent 目录的 junction。
-  丙区**不是** agent 的读位：只刷丙区对所有 agent 都不生效。
-- **11 个 agent 目录里的 `personal-dev-workflow` 全是 junction，目标都是中央副本**：
-  `~\.claude\skills`、`~\.codex\skills`、`~\.config\opencode\skills`、`~\.copilot\skills`、`~\.cursor\skills`、
-  `~\.dsh\skills`、`~\.gemini\antigravity\skills`、`~\.kimi-code\skills`、`~\.minimax\skills`、
-  `~\.omp\agent\skills`、`~\.pi\agent\skills`。这些 junction 由 skills-manager 建立，**不要手工删或重建**
-  （DB 里记着中央副本是 target；手工改指会被下一次同步覆盖，且漂移极难察觉）。
-- **OpenCode 读 `~\.config\opencode\skills`**（V2 的默认全局技能目录）——那里是指向中央副本的 junction；
-  `~\.config\opencode\opencode.json` 的顶层键是 `$schema, agents, experimental, compaction, mcp, permissions,
-  model, shell, providers`，**没有** `skills` 键。
-- **DSH 的 `skill-filesystem.customSkillDirs` 现为 `[]`**（`includeDefaultRoots: false`）；它那条入口同样是
-  `~\.dsh\skills\personal-dev-workflow` 这个 junction。客户端是否真的列出/加载，属未实测项（边界见 §4 步骤 4）。
-- **cc / agy 按需直读 `<名>\SKILL.md` 仍然有效**：junction 让路径可读，但这两种 agent 没有自动注册机制，
-  要在会话里用完整体路径调用或读取。
-- **skills-manager 库里的记录仍在**：`personal-dev-workflow`，`id=d3669121-c7d7-440a-b34e-b9fff375b582`，
-  `source_type=local`、`source_ref=C:\Users\Satanchen\.agents_four_skills\personal-dev-workflow`、`enabled=1`、
-  `update_status=up_to_date`。但 PATH 上**没有** `skills` CLI（只有 `sk`，且它没有 update / deploy 子命令），
-  所以中央副本目前**只能人工覆盖**；**不要**用 `npx skills add` 重新注册，也不要手工改 `skills-manager.db`。
+| 事实 | 值 |
+| --- | --- |
+| 技能文件数 | 11（`skills/personal-dev-workflow/` 递归） |
+| 丙区 | `~\.agents_four_skills\personal-dev-workflow`，skills-manager 的 `local` 源，**不是** agent 读位；只刷它对任何 agent 都不生效 |
+| 中央副本 | `~\.skills-manager\skills\personal-dev-workflow`，各 agent 读到的就是这份 |
+| junction | 11 条，全部指向中央副本：`~\.claude\skills`、`~\.codex\skills`、`~\.config\opencode\skills`、`~\.copilot\skills`、`~\.cursor\skills`、`~\.dsh\skills`、`~\.gemini\antigravity\skills`、`~\.kimi-code\skills`、`~\.minimax\skills`、`~\.omp\agent\skills`、`~\.pi\agent\skills` |
+| OpenCode 注册 | 读默认全局目录 `~\.config\opencode\skills`；`opencode.json` 顶层**没有** `skills` 键 |
+| DSH 注册 | `skill-filesystem.customSkillDirs` 为 `[]`（`includeDefaultRoots: false`）；入口是 `~\.dsh\skills` 的 junction |
+| skills-manager 记录 | `personal-dev-workflow`，`id=d3669121-c7d7-440a-b34e-b9fff375b582`，`source_type=local`、`source_ref` 指丙区、`enabled=1` |
+
+`README.md` / `AGENTS.md` / `RELEASING.md` 只引用本节，不复述上表；机器可核的部分由
+`node scripts/check-docs.mjs` 检查（`--strict` 时环境缺失也算失败）。
+
+其余操作边界：
+
+- 这些 junction 由 skills-manager 建立，**不要手工删、重建或改指**（DB 记着 target；改指会被下一次同步覆盖，且漂移极难察觉）。
+- PATH 上**没有** `skills` CLI（只有 `sk`，且它没有 update / deploy 子命令），中央副本目前只能人工覆盖；
+  **不要**用 `npx skills add` 重新注册，也不要手工改 `skills-manager.db`。
+- `cc` / `agy` 没有自动注册机制，按需直读 `<名>\SKILL.md`；junction 只保证路径可读。
+  DSH 客户端是否真的列出/加载这条技能属未实测项（边界见 §4 步骤 4）。
+- 改内容只改仓库那份；丙区由"push 后再取远端"刷新（§5），中央副本由"从丙区覆盖"刷新，项目副本由"复制"或
+  `update.mjs` 刷新，**不手工编辑丙区与中央副本**。三处漂移用 `node scripts/verify-distribution.mjs` 校验（§5）。
 - 丙区新增或重命名技能，只需同步名册 `stars-scan\curated\personal-skills.json`；
   边界全文见本地治理目录的 `SKILL-BOUNDARIES-AGENTS-FOUR-SKILLS.md`。
-- 改内容只改仓库那份；丙区由"push 后再取远端"刷新（§5），中央副本由"从丙区覆盖"刷新，项目副本由"复制"或
-  `update.mjs` 刷新，**不手工编辑丙区与中央副本**。三处的漂移校验用 `node scripts/verify-distribution.mjs`（§5）。
-
 ## 2. 版本口径
 
 - 发布号 = `package.json` 的 `version`（现 `2.0.1`，**不再变动**）；研究版 = `pdwSkillVersion`（现 `1.4.0-local`）。

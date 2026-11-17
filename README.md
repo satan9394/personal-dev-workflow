@@ -63,18 +63,17 @@ npx skills add satan9394/personal-dev-workflow
 
 | Way | Command / path |
 |---|---|
-| Manual copy (universal) | copy `skills/personal-dev-workflow/` into `<project>/.agents/skills/` — discovered by Codex, OpenCode, DSH and Antigravity |
+| Manual copy (project-local) | copy `skills/personal-dev-workflow/` into `<project>/.agents/skills/` — a self-contained project copy; auto-discovery depends on the host (Codex does not consume skills; OpenCode and DSH read their global skill roots) |
 | Manual copy (Claude Code) | copy `skills/personal-dev-workflow/` into `~/.claude/skills/` or `<project>/.claude/skills/` |
 | Into an existing project | `node <skill>/scripts/pdw.mjs install --project <path>` — refuses to overwrite an existing skill of the same name |
 | Update an installed copy | `node .agents/skills/personal-dev-workflow/scripts/update.mjs --project <path>` — clones published `main`, byte-compares the whole skill tree, backs up into `.pdw/skill-upgrade-<date>/`, replaces changed files atomically, runs `doctor`; idempotent, never touches `.pdw/config.json`, deletes nothing (`--dry-run` compares only) |
 
 On the author's machine the Skill is **not** installed through `npx skills add`. The canonical copy is
-`skills/personal-dev-workflow/` in this repository, published to GitHub `main`, mirrored into the shared
-personal-skills area `~/.agents_four_skills/personal-dev-workflow` (the single reading location for
-OpenCode and DeepSeek Harness — registered natively by `opencode.json#skills` and
-`skill-filesystem.customSkillDirs` — with Claude Code and Antigravity reading `<name>/SKILL.md` on demand;
-Codex does not read skills), and copied from there into each long-lived project's
-`.agents/skills/personal-dev-workflow/`. See [`DEPLOYMENT.md`](DEPLOYMENT.md).
+`skills/personal-dev-workflow/`, published to GitHub `main` and then distributed through four layers: the
+repository, the shared area `~/.agents_four_skills/personal-dev-workflow` (skills-manager's `local` source,
+not an agent reading location), the central copy every agent actually reads, and one junction per agent
+skill directory. Project copies under `.agents/skills/personal-dev-workflow/` are independent. The exact
+paths, the host config facts and the three refresh steps live in [`DEPLOYMENT.md` §1](DEPLOYMENT.md).
 
 ## Driving it
 
@@ -169,7 +168,7 @@ This repo practices what the skill preaches:
 - `node --test skills/personal-dev-workflow/scripts/drivers.test.mjs` — native discovery, profile
   policies and malformed-output rejection, plus the Windows Codex npm layout, Chinese paths and
   argument boundaries.
-- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 38 fixture orchestration cases,
+- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 62 fixture orchestration cases,
   including ignored Git roots/scope, evidence freshness, budgets, locks, cancellation and failure
   reporting, the two `snapshot()` guard rails (a foreign work tree, and a covered set with no readable
   file) and the bundled updater (byte comparison, backup, idempotence, untouched `.pdw/config.json`).
@@ -212,8 +211,8 @@ MIT.
 npx skills add satan9394/personal-dev-workflow
 ```
 
-或把 `skills/personal-dev-workflow/` 复制到项目 `.agents/skills/`（Codex / OpenCode / DSH / Antigravity）
-或 `.claude/skills/`（Claude Code）。
+或把 `skills/personal-dev-workflow/` 复制到项目 `.agents/skills/`（项目级独立副本；Codex 不消费 skill，OpenCode/DSH 读各自全局技能根），
+或复制到 `.claude/skills/`（Claude Code）。
 
 对 agent 说"用 PDW 在 \<项目\> 完成 \<目标\>"（或"开工 / 实现这个功能 / 修这个 bug"）即可，你不必写 JSON。
 程序入口 `node <本Skill>/scripts/pdw.mjs <命令>`，命令与契约字段见
