@@ -233,7 +233,15 @@ export function startViewer({ project, store, port = 8891, open = false } = {}) 
   return server;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** Compare real paths: Node resolves the ESM entry to its realpath, so a junction invocation never matches a plain resolve. */
+function invokedAsScript() {
+  if (!process.argv[1]) return false;
+  const self = fileURLToPath(import.meta.url);
+  try { return fs.realpathSync.native(process.argv[1]) === fs.realpathSync.native(self); }
+  catch { return path.resolve(process.argv[1]) === self; }
+}
+
+if (invokedAsScript()) {
   const argv = process.argv.slice(2);
   const value = name => { const i = argv.indexOf(name); return i < 0 ? null : argv[i + 1] ?? null; };
   try {
@@ -243,4 +251,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error(`PDW view: ${error.message}`);
     process.exitCode = 1;
   }
+} else if (process.argv[1] && path.basename(process.argv[1]) === 'viewer.mjs') {
+  console.error('PDW view: entry point not recognised; this copy cannot run as a script (junction or stale duplicate)');
+  process.exitCode = 1;
 }

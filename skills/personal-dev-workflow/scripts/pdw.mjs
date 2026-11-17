@@ -776,6 +776,18 @@ async function main(argv) {
   throw new Error(`Unknown command: ${command}`);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** Compare real paths: Node resolves the ESM entry to its realpath, so a junction invocation never matches a plain resolve. */
+function invokedAsScript() {
+  if (!process.argv[1]) return false;
+  const self = fileURLToPath(import.meta.url);
+  try { return fs.realpathSync.native(process.argv[1]) === fs.realpathSync.native(self); }
+  catch { return path.resolve(process.argv[1]) === self; }
+}
+
+if (invokedAsScript()) {
   main(process.argv.slice(2)).catch(error => { console.error(`PDW: ${error.message}`); process.exitCode = 1; });
+} else if (process.argv[1] && path.basename(process.argv[1]) === 'pdw.mjs') {
+  // Invoked as a script but not recognised as this file (an old copy, another resolver): fail loudly, never exit 0 doing nothing.
+  console.error('PDW: entry point not recognised; this copy cannot run as a script (junction or stale duplicate)');
+  process.exitCode = 1;
 }

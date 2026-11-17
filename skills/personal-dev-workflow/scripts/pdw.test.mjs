@@ -791,6 +791,17 @@ await test('a refused config leaves no half-created task directory', () => {
   command(t.root, ['status'], 0);
 });
 
+await test('a junction to the skill runs the same CLI instead of exiting silently', () => {
+  const t = setup('entry-junction');
+  const link = path.join(evidence, 'entry-junction-link');
+  fs.symlinkSync(path.dirname(path.dirname(runtime)), link, process.platform === 'win32' ? 'junction' : 'dir');
+  const viaReal = spawnSync(process.execPath, [runtime, 'status', '--project', t.root], { encoding: 'utf8', timeout: 30000 });
+  const viaLink = spawnSync(process.execPath, [path.join(link, 'scripts', 'pdw.mjs'), 'status', '--project', t.root], { encoding: 'utf8', timeout: 30000 });
+  assert.equal(viaLink.status, viaReal.status, viaLink.stderr);
+  assert.equal(viaLink.stdout, viaReal.stdout);
+  assert.ok(viaLink.stdout.includes(t.id));
+});
+
 fs.writeFileSync(path.join(evidence, 'results.json'), JSON.stringify({ scope: 'Fixture CLI orchestration, not live provider integration', outcomes }, null, 2));
 console.log(JSON.stringify({ evidence, passed: outcomes.filter(o => o.result === 'PASS').length, failed: outcomes.filter(o => o.result === 'FAIL').length }));
 process.exitCode = outcomes.some(o => o.result === 'FAIL') ? 1 : 0;

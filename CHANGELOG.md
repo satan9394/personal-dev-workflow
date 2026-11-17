@@ -3,6 +3,35 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-11-17 — Run under junctions, and document the real distribution chain
+
+### Skill content
+
+- **The entry guard compares real paths.** `pdw.mjs` and `viewer.mjs` decided "am I the script being run"
+  with `path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)`. Node resolves the ESM entry to
+  its realpath, so invoking either file **through a junction** never matched: `main()` was skipped and the
+  process exited 0 with no output. On this machine every agent's skill directory is a junction, so following
+  `SKILL.md`'s "call `node <skill>/scripts/pdw.mjs`" produced a silent success. Both files now compare
+  `fs.realpathSync.native` of both sides; when the invocation looks like this script but cannot be
+  recognised, it prints an error and exits 1 instead of exiting 0 doing nothing.
+- `pdw.test.mjs` gains a case that builds a real junction to the skill and runs `status` through it,
+  asserting the exit code and stdout are identical to the real path: 61 → 62 cases.
+
+### Distribution
+
+- `scripts/verify-distribution.mjs` (read-only, zero dependencies) hashes every file of 丙区
+  (`~/.agents_four_skills/personal-dev-workflow`), the central copy
+  (`~/.skills-manager/skills/personal-dev-workflow`) and the 11 agent directories, prints each differing
+  path with both hashes and exits 1 on any difference. `--source`, `--mirror` and repeatable `--target`
+  override the defaults; missing targets are reported but only fail with `--strict`.
+- `DEPLOYMENT.md` now states the chain that actually exists: the repository is the development copy, 丙区
+  is the skills-manager `local` source, the central copy under `~/.skills-manager/skills` is what every
+  agent reads, and the agent directories hold junctions to it. OpenCode loads `~/.config/opencode/skills`
+  (its `opencode.json` has no `skills` key); DSH's `customSkillDirs` is empty. The skills-manager record is
+  still there (`id=d3669121-…`, `enabled=1`), but no `skills` CLI is on PATH, so the central copy is
+  refreshed by hand — §5.1 spells out the three steps: refresh 丙区 → overwrite the central copy →
+  run `verify-distribution`.
+
 ## [main] — 2026-11-16 — Config validation fails closed
 
 ### Skill content
@@ -22,7 +51,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
   file is missing). Validation runs top-level keys → role set → role fields → `limits` → `cost`, so the
   first error points at the layer to edit.
 - `new` validates the config **before** it writes `contract.json`, so a refused task leaves no
-  half-created directory; `status` used to exit 1 on such a directory.
+  half-created directory; `status` used to exit 1 on such a directory. The new code no longer produces
+  one, but a **pre-existing** half-created directory still makes `status` exit 1 — that is the next card's
+  job, not a fix in this one.
 - `pdw.test.mjs` gains six cases: a config without `schema_version` still running (and left unmigrated),
   an unknown `schema_version`, an unknown top-level key, an unknown `limits` key, an unknown field
   inside a role profile, and a refused config leaving no half-created task directory. Suite 61/61,
