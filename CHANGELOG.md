@@ -3,6 +3,64 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [main] — 2026-11-16 — Config validation fails closed
+
+### Skill content
+
+- **`configFor` now checks `schema_version` before anything reads the config.** A config without the field
+  is read as schema 1 — the historical projects keep working, and the file is neither written back nor
+  migrated; `1` passes; any other value throws with the actual value and the supported value (`1`).
+- **Every config layer has a key whitelist.** Top level: `schema_version`, `roles`, `limits`, `cost`.
+  `roles` accepts only `scan`, `test-plan`, `implement`, `review` and `planner` (`repair` is not a config
+  entry; the runtime maps it to `implement`). A role object accepts only `backend`, `executable`, `model`,
+  `args`, `standalone`, `reasoning_effort` and `prompt_guidance`. `limits` keeps `max_cli_calls`,
+  `max_repairs`, `call_timeout_seconds`, `task_timeout_seconds`; `cost` keeps `status` and
+  `hard_money_limit`. The error names the key path and the keys that layer supports.
+- **Unknown keys fail instead of being ignored.** A project copy that still carries a retired or mistyped
+  key used to run on defaults while the file read as if the key were in effect; now `doctor`, `plan`,
+  `new` and `run` refuse at load time (`init` never reads an existing config — it only writes one when the
+  file is missing). Validation runs top-level keys → role set → role fields → `limits` → `cost`, so the
+  first error points at the layer to edit.
+- `new` validates the config **before** it writes `contract.json`, so a refused task leaves no
+  half-created directory; `status` used to exit 1 on such a directory.
+- `pdw.test.mjs` gains six cases: a config without `schema_version` still running (and left unmigrated),
+  an unknown `schema_version`, an unknown top-level key, an unknown `limits` key, an unknown field
+  inside a role profile, and a refused config leaving no half-created task directory. Suite 61/61,
+  drivers 16/16.
+- `references/runtime.md` documents `schema_version`, the per-layer whitelist and why unknown keys are
+  rejected rather than silently accepted.
+
+## [main] — 2026-11-16 — Route visibility: `plan` lists resolved providers, `doctor` checks model shape and provider keys
+
+### Skill content
+
+- **`plan` prints a `routes` block.** Every planned role reports `backend`, the `provider` parsed from the
+  first segment of `model`, the `model` id without that prefix and without `#variant`, the `variant`, and
+  `source`: `explicit` when the config carries `#variant` or `reasoning_effort` (a bare `provider/model`
+  with no other source reports `variant: null`), `saved-variant` when a bare `provider/model` inherits the
+  variant the host saved in `model.json` — the same value `init` copies — and `host-default` when the role
+  has no `model` and PDW sends no `--model`. Existing `roles`, `checks`, `limits` and `cost` keep their
+  names and values.
+- **`doctor` gains `model_shape` and `provider_known` per role.** The shape check is per backend: opencode
+  must match `^[A-Za-z0-9][A-Za-z0-9._-]*/[^\s#]+(#[\w.-]+)?$` (a nested model id such as
+  `magpie/auto/<model>` stays valid, while a missing model id, embedded whitespace or an empty `#variant`
+  is `invalid`; the extra gateway layer `opengateway/deepseek/deepseek-v4-pro` is shape-valid by that rule
+  and is separated by the provider lookup instead), and codex/agy accept a bare host-resolved id such as
+  `gpt-6.1-sol` through `^[A-Za-z0-9][A-Za-z0-9._:-]*$`, where a provider prefix is part of the model name
+  and therefore `invalid`. `provider_known` compares the first segment with the host OpenCode config keys
+  (`providers` on 2.x, `provider` on 1.x), degrades to `unknown` when that file is missing, unparsable or
+  without a provider table, and is always `unknown` for codex/agy because those roles carry no provider
+  segment. Both surface through the new top-level `route_warnings` text, which names the role, the
+  model string and the provider key; neither changes `ready`, because a host without a readable config
+  (no network, JSONC comments, another machine) and a freshly installed provider are environment facts,
+  and turning them into `ready: false` would train people to ignore the output.
+- `pdw.test.mjs` gains five cases: route resolution across `explicit` / `saved-variant` /
+  `host-default`, an extra provider layer plus a truncated model plus a provider the host does not
+  declare, a missing or broken host config, a codex role on its bare `gpt-6.1-sol` id, and an opencode role
+  wrongly given that same bare id. Suite 55/55, drivers 16/16.
+- `references/runtime.md` documents the `routes` fields, the two doctor fields, why a nested model id is
+  legal, and why `unknown` never blocks.
+
 ## [main] — 2026-11-10 — Back-port the OpenCode `--archived` flag for scripted role sessions
 
 ### Skill content

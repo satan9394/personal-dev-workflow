@@ -47,11 +47,20 @@ if(mode==='hang'){
 }
 `);
 const outcomes = [];
-function command(root, args, expected = 0) {
-  const result = spawnSync(process.execPath, [runtime, ...args, '--project', root], { encoding: 'utf8', timeout: 30000, windowsHide: true });
+function command(root, args, expected = 0, env = {}) {
+  const result = spawnSync(process.execPath, [runtime, ...args, '--project', root], { encoding: 'utf8', timeout: 30000, windowsHide: true, env: { ...process.env, ...env } });
   assert.equal(result.status, expected, `${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
   return result;
 }
+/** A throwaway host profile so route checks never read the real OpenCode config. */
+function hostHome(name, body) {
+  const home = path.join(evidence, name);
+  const file = path.join(home, '.config', 'opencode', 'opencode.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (body !== undefined) fs.writeFileSync(file, typeof body === 'string' ? body : JSON.stringify(body));
+  return home;
+}
+const routeEnv = home => ({ USERPROFILE: home, HOME: home, XDG_STATE_HOME: path.join(home, '.local', 'state') });
 function setup(name, mode = 'success', limits = {}, audit = false, options = {}) {
   const root = path.join(evidence, name); fs.mkdirSync(root);
   if (options.git) {
@@ -444,6 +453,94 @@ await test('doctor rejects missing OC models and policy-changing profile prefixe
   assert.ok(report.roles.find(r => r.role === 'implement').configuration_error);
 });
 
+await test('plan resolves every role route and says where the variant came from', () => {
+  const t = setup('route-plan');
+  const home = hostHome('route-plan-home', { providers: { magpie: { models: { 'auto/deepseek-v4.1-flash': {} } } } });
+  fs.mkdirSync(path.join(home, '.local', 'state', 'opencode'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.local', 'state', 'opencode', 'model.json'), JSON.stringify({ variant: { 'magpie/auto/deepseek-v4.1-flash': 'high' } }));
+  const scan = { ...t.config.roles.scan, model: 'magpie/auto/deepseek-v4.1-flash#max' };
+  const testPlan = { ...t.config.roles['test-plan'], model: 'magpie/auto/deepseek-v4.1-flash' };
+  const review = { ...t.config.roles.review, model: 'magpie/auto/deepseek-v4.1-flash', reasoning_effort: 'high' };
+  t.config.roles = { ...t.config.roles, scan, 'test-plan': testPlan, implement: { backend: 'codex', executable: process.execPath, model: null }, review };
+  fs.writeFileSync(path.join(t.root, '.pdw/config.json'), JSON.stringify(t.config));
+  const plan = JSON.parse(command(t.root, ['plan', t.id], 0, routeEnv(home)).stdout);
+  assert.deepEqual(plan.routes.scan, { backend: 'opencode', provider: 'magpie', model: 'auto/deepseek-v4.1-flash', variant: 'max', source: 'explicit' });
+  assert.deepEqual(plan.routes['test-plan'], { backend: 'opencode', provider: 'magpie', model: 'auto/deepseek-v4.1-flash', variant: 'high', source: 'saved-variant' });
+  assert.deepEqual(plan.routes.review, { backend: 'opencode', provider: 'magpie', model: 'auto/deepseek-v4.1-flash', variant: 'high', source: 'explicit' });
+  assert.deepEqual(plan.routes.implement, { backend: 'codex', provider: null, model: null, variant: null, source: 'host-default' });
+  // Existing plan fields keep their names and values.
+  assert.equal(plan.roles.scan.model, 'magpie/auto/deepseek-v4.1-flash#max');
+  assert.equal(plan.roles['test-plan'].model, 'magpie/auto/deepseek-v4.1-flash');
+  assert.equal(plan.roles.implement.model, null);
+  assert.equal(plan.checks[0].id, 'contents');
+});
+await test('doctor reports an extra provider layer, a malformed model and an undeclared provider', () => {
+  const t = setup('route-shape');
+  const home = hostHome('route-shape-home', { providers: { magpie: {}, fixture: {} } });
+  const env = routeEnv(home);
+  t.config.roles = { ...t.config.roles,
+    scan: { ...t.config.roles.scan, model: 'opengateway/deepseek/deepseek-v4-pro' },
+    review: { ...t.config.roles.review, model: 'magpie/' } };
+  fs.writeFileSync(path.join(t.root, '.pdw/config.json'), JSON.stringify(t.config));
+  // A nested model id is legal (magpie routes `auto/<model>`), so the extra gateway layer is caught by
+  // the provider lookup; the truncated string is caught by the shape. Neither gates ready.
+  const report = JSON.parse(command(t.root, ['doctor'], 0, env).stdout);
+  const scan = report.roles.find(r => r.role === 'scan'), review = report.roles.find(r => r.role === 'review');
+  assert.equal(scan.model_shape, 'ok'); assert.equal(scan.provider_known, false);
+  assert.equal(review.model_shape, 'invalid'); assert.equal(review.provider_known, true);
+  assert.equal(scan.ready, true); assert.equal(review.ready, true);
+  assert.equal(report.route_warnings.length, 2);
+  assert.ok(report.route_warnings.some(text => text.includes('scan') && text.includes('opengateway')));
+  assert.ok(report.route_warnings.some(text => text.includes('review') && text.includes('magpie/')));
+  const plan = JSON.parse(command(t.root, ['plan', t.id], 0, env).stdout);
+  assert.deepEqual(plan.routes.scan, { backend: 'opencode', provider: 'opengateway', model: 'deepseek/deepseek-v4-pro', variant: null, source: 'explicit' });
+});
+await test('an unreadable host config degrades provider checks to unknown instead of blocking', () => {
+  const t = setup('route-host-missing');
+  const missing = hostHome('route-host-missing-home');
+  let report = JSON.parse(command(t.root, ['doctor'], 0, routeEnv(missing)).stdout);
+  for (const role of report.roles) {
+    assert.equal(role.provider_known, 'unknown');
+    assert.equal(role.model_shape, 'ok');
+    assert.equal(role.ready, true);
+  }
+  assert.deepEqual(report.route_warnings, []);
+  const broken = hostHome('route-host-broken', '{broken');
+  report = JSON.parse(command(t.root, ['doctor'], 0, routeEnv(broken)).stdout);
+  assert.ok(report.roles.every(role => role.provider_known === 'unknown'));
+  assert.deepEqual(report.route_warnings, []);
+});
+
+await test('a codex role keeps its bare model id and is never asked for a provider', () => {
+  const t = setup('route-codex-bare');
+  const home = hostHome('route-codex-bare-home', { providers: { magpie: {}, fixture: {} } });
+  const env = routeEnv(home);
+  t.config.roles = { ...t.config.roles, implement: { backend: 'codex', executable: process.execPath, model: 'gpt-6.1-sol', reasoning_effort: 'medium' } };
+  fs.writeFileSync(path.join(t.root, '.pdw/config.json'), JSON.stringify(t.config));
+  const report = JSON.parse(command(t.root, ['doctor'], 0, env).stdout);
+  const implement = report.roles.find(r => r.role === 'implement');
+  assert.equal(implement.model_shape, 'ok');
+  assert.equal(implement.provider_known, 'unknown');
+  assert.equal(implement.ready, true);
+  assert.deepEqual(report.route_warnings, []);
+  const plan = JSON.parse(command(t.root, ['plan', t.id], 0, env).stdout);
+  assert.deepEqual(plan.routes.implement, { backend: 'codex', provider: null, model: 'gpt-6.1-sol', variant: null, source: 'explicit' });
+});
+await test('an opencode role with a bare model id is flagged for the missing provider segment', () => {
+  const t = setup('route-opencode-bare');
+  const home = hostHome('route-opencode-bare-home', { providers: { magpie: {}, fixture: {} } });
+  const env = routeEnv(home);
+  t.config.roles = { ...t.config.roles, scan: { ...t.config.roles.scan, model: 'gpt-6.1-sol' } };
+  fs.writeFileSync(path.join(t.root, '.pdw/config.json'), JSON.stringify(t.config));
+  const report = JSON.parse(command(t.root, ['doctor'], 0, env).stdout);
+  const scan = report.roles.find(r => r.role === 'scan');
+  assert.equal(scan.model_shape, 'invalid');
+  assert.equal(scan.provider_known, 'unknown');
+  assert.equal(scan.ready, true);
+  assert.equal(report.route_warnings.length, 1);
+  assert.ok(report.route_warnings[0].includes('scan') && report.route_warnings[0].includes('gpt-6.1-sol'));
+});
+
 await test('view serves a read-only dashboard for one project', async () => {
   const root = path.join(evidence, 'view-project');
   const dir = path.join(root, '.pdw', 'tasks', '20260101000000-abcdef');
@@ -639,6 +736,59 @@ await test('a worktree task cannot run from the main checkout', () => {
   assert.equal(status.evidence_current, true);
   const refused = command(t.root, ['run', id], 1);
   assert.match(refused.stderr, /belongs to the linked worktree/);
+});
+
+await test('a config without schema_version is read as schema 1 and is not migrated', () => {
+  const t = setup('config-no-schema');
+  const file = path.join(t.root, '.pdw', 'config.json'), written = JSON.parse(fs.readFileSync(file, 'utf8'));
+  delete written.schema_version; fs.writeFileSync(file, JSON.stringify(written));
+  const report = JSON.parse(command(t.root, ['doctor']).stdout);
+  assert.equal(report.roles.length, 4);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).schema_version, undefined);
+  const plan = JSON.parse(command(t.root, ['plan', t.id]).stdout);
+  assert.equal(plan.id, t.id); assert.equal(plan.limits.max_cli_calls, 8);
+});
+await test('an unknown config schema_version is rejected with the actual and supported values', () => {
+  const t = setup('config-schema-unknown');
+  t.config.schema_version = 2;
+  fs.writeFileSync(path.join(t.root, '.pdw', 'config.json'), JSON.stringify(t.config));
+  const refused = command(t.root, ['doctor'], 1);
+  assert.match(refused.stderr, /Unsupported config schema_version 2/);
+  assert.match(refused.stderr, /supported: 1/);
+});
+await test('an unknown top-level config key is rejected instead of ignored', () => {
+  const t = setup('config-top-key');
+  t.config.role_limits = { max_cli_calls: 100 };
+  fs.writeFileSync(path.join(t.root, '.pdw', 'config.json'), JSON.stringify(t.config));
+  const refused = command(t.root, ['plan', t.id], 1);
+  assert.ok(refused.stderr.includes('role_limits'));
+  assert.ok(refused.stderr.includes('supported: schema_version, roles, limits, cost'));
+});
+await test('an unknown limits key is rejected with the supported limit keys', () => {
+  const t = setup('config-limit-key');
+  t.config.limits.max_tokens = 48000;
+  fs.writeFileSync(path.join(t.root, '.pdw', 'config.json'), JSON.stringify(t.config));
+  const refused = command(t.root, ['doctor'], 1);
+  assert.ok(refused.stderr.includes('limits.max_tokens'));
+  assert.ok(refused.stderr.includes('supported: max_cli_calls, max_repairs, call_timeout_seconds, task_timeout_seconds'));
+});
+await test('an unknown field inside a role profile is rejected with its path', () => {
+  const t = setup('config-role-key');
+  t.config.roles.scan.temperature = 0.2;
+  fs.writeFileSync(path.join(t.root, '.pdw', 'config.json'), JSON.stringify(t.config));
+  const refused = command(t.root, ['run', t.id], 1);
+  assert.ok(refused.stderr.includes('roles.scan.temperature'));
+  assert.ok(refused.stderr.includes('supported: backend, executable, model, args, standalone, reasoning_effort, prompt_guidance'));
+});
+await test('a refused config leaves no half-created task directory', () => {
+  const t = setup('config-new-atomic');
+  t.config.roles.scan.temperature = 0.2;
+  fs.writeFileSync(path.join(t.root, '.pdw', 'config.json'), JSON.stringify(t.config));
+  const tasks = path.join(t.root, '.pdw', 'tasks'), before = fs.readdirSync(tasks);
+  const refused = command(t.root, ['new', '--from', path.join(t.root, '.pdw', 'input.json')], 1);
+  assert.ok(refused.stderr.includes('roles.scan.temperature'));
+  assert.deepEqual(fs.readdirSync(tasks), before, 'a refused new must not leave a task directory');
+  command(t.root, ['status'], 0);
 });
 
 fs.writeFileSync(path.join(evidence, 'results.json'), JSON.stringify({ scope: 'Fixture CLI orchestration, not live provider integration', outcomes }, null, 2));

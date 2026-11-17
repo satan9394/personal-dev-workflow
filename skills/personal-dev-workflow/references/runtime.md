@@ -83,9 +83,17 @@ audit 模式不启动实现或修复。审计报告可以包含被审对象的 h
 
 init 仅从现有 OpenCode 配置中的标识选择 DeepSeek V4.1 Flash，不复制配置或密钥：先看顶层 `model`，再按 `providers`（OpenCode 2.x）或 `provider`（1.x）里的 `models` 找匹配项，两者都读、都不写回。选中的只是提议值，不证明它最便宜；没有识别到就要求协调者从实际模型列表填写，不能静默使用昂贵默认模型。Codex/AGY 默认沿用宿主模型，可在项目配置显式指定。
 
+plan 在既有 roles/checks 之外新增 `routes`，启动前把每个角色的路由摊开：`backend`、从 model 第一段解析出的 `provider`、去掉 provider 前缀与 `#variant` 的 `model`、`variant`，以及 `source`。`source` 说明这个 variant 从哪来：`explicit` 是配置自己写明（model 里带 `#variant`，或设置了 `reasoning_effort`；只写 provider/model 且没有别的来源时 variant 为 null）；`saved-variant` 是模型串没写 variant，值取自宿主 OpenCode 状态目录 `model.json` 里为该 model 保存的选择（init 会把同一个值写进新配置；配置不写 `#variant` 时宿主按这份自存状态选档，TUI 改选也会跟着变，这正是 init 要固定的原因）；`host-default` 是角色 model 为空，PDW 不传 `--model`。routes 只做字符串解析与一次宿主配置读取，不认证、不发请求，不证明宿主真按它路由。
+
+provider 写错不是拼写问题：`provider/model` 的第一段决定请求实际打到哪个提供方，把网关名或宿主内置 provider 名写混（把 `opencodex/...` 写成上一层的 `opengateway/...`）会让请求静默改道，账单照常产生且没有告警。doctor 因此为每个角色补两个字段，并把发现写进顶层 `route_warnings`，文本里指名角色、model 串与 provider 键。`model_shape` 按 backend 分形态，取 `ok`/`invalid`。opencode 必须是 `provider/model-id[#variant]`，匹配 `^[A-Za-z0-9][A-Za-z0-9._-]*/[^\s#]+(#[\w.-]+)?$`：第一段是 provider、其后是 model id、可带 `#variant`；model id 内部允许再出现 `/`（magpie 的 `auto/<model>` 就是这种形态），所以 `opengateway/deepseek/deepseek-v4-pro` 这类多一层前缀的串形态仍算 ok，要由 provider 键那一步把它分开；`magpie/` 这种缺 model id 的串、含空白或空 variant 的串才是 invalid。codex 与 agy 的 model 本来就是宿主解析的裸 id（`gpt-6.1-sol` 就是一例），接受 `^[A-Za-z0-9][A-Za-z0-9._:-]*$`；给它们补 provider 前缀不是“更完整”，那个前缀会被当成模型名的一部分，同样判 invalid。model 为空（host-default）时两种 backend 都是 ok，因为不存在待校验的串，是否显式由 `model_explicit` 表示。`provider_known` 取 `true`/`false`/`unknown`：第一段出现在宿主 OpenCode 配置 `providers`（2.x）或 `provider`（1.x）的键里为 true，不在为 false，读不到宿主配置（文件缺失或 JSONC 解析失败）或配置里没有 provider 表时为 unknown；非 opencode backend 一律 unknown，因为这类角色没有 provider 段（routes 里 provider 为 null），无法据此判断路由对错，也就不发告警。
+
+这两个字段只产生告警文本，不参与 `ready`。读不到宿主配置是环境差异（换机器、无网络、配置带注释），provider 不在宿主列表也可能是刚装上的 provider 或另一台机器的配置，判成硬失败会让 doctor 在常见环境下整片变红，最后没人再看告警；形态非法若直接阻断，升级到本版的项目会在没改任何配置的情况下启动即失败，超出这两个字段的范围。要处理的是告警本身：先对照 plan 的 routes 与宿主 provider 键，再改配置或换 model。出现告警时 PDW 仍会照原样把 model 传给宿主，不会替人猜测正确写法。
+
 OpenCode 2.0.x 的私有 standalone 模型查询曾报插件激活失败，因此默认用现有服务；可设置某项 `standalone: true` 在其他已验证环境使用私有进程。原有权限/风险插件不被禁用。
 
 ## 模型交接配置
+
+`.pdw/config.json` 先按 `schema_version` 解析：字段缺失按 1 读取——旧项目照常工作，文件不写回也不迁移；值为 1 通过；其他值直接报错，信息里带实际值与支持值（`1`）。随后每层做键白名单：顶层只有 `schema_version`、`roles`、`limits`、`cost`；`roles` 下只有 `scan`、`test-plan`、`implement`、`review`、`planner`（`repair` 不是配置项，运行时映射到 implement）；角色对象内只有 `backend`、`executable`、`model`、`args`、`standalone`、`reasoning_effort`、`prompt_guidance`；`limits` 只有 `max_cli_calls`、`max_repairs`、`call_timeout_seconds`、`task_timeout_seconds`；`cost` 只有 `status`、`hard_money_limit`。未知键在 doctor/plan/new/run 读取配置时就报错（init 只负责在没有配置时生成一份，不读旧配置；旧配置里的退役键由下一个读配置的命令报出），且 `new` 先校验再写任务文件，被拒时不会留下没有 `state.json` 的目录，错误给键路径与该层支持的键列表，不静默忽略：项目副本常带着退役或拼错的键，忽略会让它按默认值运行，而配置文件看上去像已经生效。校验顺序为顶层键 → 角色集合 → 角色内字段 → limits → cost，第一条错误就指到要改的那一层。
 
 角色可选 `prompt_guidance`（非空文本，须显式指定 model），用于协调者根据已核实的模型指导和本任务编写的简短执行提示。程序将其连同契约、角色职责和前序证据写入每次 `attempts/.../prompt.md`。模型指导不能覆盖范围、权限或验收；计划须结合当前源码验证。
 

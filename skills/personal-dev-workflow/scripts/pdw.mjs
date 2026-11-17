@@ -205,29 +205,71 @@ function validateContract(task) {
   if (new Set(task.checks.map(c => c.id)).size !== task.checks.length) throw new Error('Duplicate check id');
 }
 
+const configSchemaVersion = 1;
+const configKeys = ['schema_version', 'roles', 'limits', 'cost'];
+/** `repair` is not a config role: `runTask` maps it to `implement`. */
+const configRoles = ['scan', 'test-plan', 'implement', 'review', 'planner'];
+const profileKeys = ['backend', 'executable', 'model', 'args', 'standalone', 'reasoning_effort', 'prompt_guidance'];
+const limitKeys = ['max_cli_calls', 'max_repairs', 'call_timeout_seconds', 'task_timeout_seconds'];
+const costKeys = ['status', 'hard_money_limit'];
+
+/**
+ * Unknown keys are rejected, never ignored: a copied project carrying a retired or mistyped key would
+ * otherwise run on defaults while its config reads as if it were in effect.
+ */
+function assertKnownKeys(value, supported, where = '') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const unknown = Object.keys(value).find(key => !supported.includes(key));
+  if (unknown !== undefined) throw new Error(`Unsupported config key ${where ? `${where}.${unknown}` : unknown}; supported: ${supported.join(', ')}`);
+}
+
 function configFor(store) {
   const config = read(path.join(store, 'config.json'));
+  // A config written before schema_version existed is schema 1; read it as 1 without rewriting the file.
+  const schema = config.schema_version ?? configSchemaVersion;
+  if (schema !== configSchemaVersion) throw new Error(`Unsupported config schema_version ${JSON.stringify(schema)}; supported: ${configSchemaVersion}`);
+  assertKnownKeys(config, configKeys);
+  assertKnownKeys(config.roles, configRoles, 'roles');
+  for (const [role, profile] of Object.entries(config.roles ?? {})) assertKnownKeys(profile, profileKeys, `roles.${role}`);
+  assertKnownKeys(config.limits, limitKeys, 'limits');
   for (const key of ['max_cli_calls', 'call_timeout_seconds', 'task_timeout_seconds']) {
     if (!Number.isInteger(config.limits?.[key]) || config.limits[key] < 1) throw new Error(`Invalid limit ${key}`);
   }
   if (![0, 1].includes(config.limits.max_repairs)) throw new Error('max_repairs must be 0 or 1');
+  assertKnownKeys(config.cost, costKeys, 'cost');
   return config;
 }
 
-export function detectCheapModel() {
+/** The host OpenCode config, or null when the file is missing or unreadable (JSONC included). */
+function hostOpenCodeConfig() {
   const file = path.join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.config', 'opencode', 'opencode.json');
   if (!fs.existsSync(file)) return null;
-  try {
-    const config = read(file);
-    if (typeof config.model === 'string' && /deepseek.*flash/i.test(config.model)) return config.model;
-    // OpenCode v2 writes `providers` (plural); v1 wrote `provider`. Read both, never silently skip v2.
-    const providers = config.providers ?? config.provider ?? {};
-    if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return null;
-    for (const provider of ['workbuddy', ...Object.keys(providers).filter(p => p !== 'workbuddy')]) {
-      const model = Object.keys(providers?.[provider]?.models ?? {}).find(m => /deepseek.*v4[.-]1.*flash/i.test(m));
-      if (model) return `${provider}/${model}`;
-    }
-  } catch { /* JSONC/custom config: require an explicit project model instead. */ }
+  try { return read(file); } catch { return null; }
+}
+
+/** Provider table of an OpenCode config, or null when it declares none. */
+function hostProviderMap(config) {
+  // OpenCode v2 writes `providers` (plural); v1 wrote `provider`. Read both, never silently skip v2.
+  const providers = config?.providers ?? config?.provider;
+  return providers && typeof providers === 'object' && !Array.isArray(providers) ? providers : null;
+}
+
+/** Provider ids the host OpenCode config declares, or null when that config cannot be read. */
+export function hostProviderIds() {
+  const providers = hostProviderMap(hostOpenCodeConfig());
+  return providers ? Object.keys(providers) : null;
+}
+
+export function detectCheapModel() {
+  const config = hostOpenCodeConfig();
+  if (!config) return null;
+  if (typeof config.model === 'string' && /deepseek.*flash/i.test(config.model)) return config.model;
+  const providers = hostProviderMap(config);
+  if (!providers) return null; // JSONC/custom config: require an explicit project model instead.
+  for (const provider of ['workbuddy', ...Object.keys(providers).filter(p => p !== 'workbuddy')]) {
+    const model = Object.keys(providers[provider]?.models ?? {}).find(m => /deepseek.*v4[.-]1.*flash/i.test(m));
+    if (model) return `${provider}/${model}`;
+  }
   return null;
 }
 
@@ -238,6 +280,42 @@ export function withSavedOpenCodeVariant(model, file = path.join(process.env.XDG
     if (typeof variant === 'string' && variant !== 'default' && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(variant)) return `${model}#${variant}`;
   } catch { /* No saved TUI choice: leave the model unchanged; never invent an effort. */ }
   return model;
+}
+
+/** OpenCode routes `provider/model-id[#variant]`; the model id may itself contain `/`. */
+const openCodeModelShape = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[^\s#]+(#[\w.-]+)?$/;
+/** Codex and AGY take a bare, host-resolved model id: no provider segment, no variant suffix. */
+const bareModelShape = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+
+/** Shape check per backend: only OpenCode carries a provider prefix, so a bare id is valid there alone. */
+function modelShapeOf(backend, model) {
+  return (['codex', 'agy'].includes(backend) ? bareModelShape : openCodeModelShape).test(model);
+}
+
+/**
+ * Resolve a role's model string into provider/model/variant and name where the variant came from.
+ * `#variant` and `reasoning_effort` are explicit; a bare provider/model inherits the variant the host
+ * saved for that model, so plan shows it instead of hiding which effort the request will carry.
+ */
+export function modelRoute(profile) {
+  const backend = profile?.backend ?? null;
+  const raw = typeof profile?.model === 'string' ? profile.model.trim() : '';
+  if (!raw) return { backend, provider: null, model: null, variant: null, source: 'host-default' };
+  const sharp = raw.indexOf('#');
+  const base = sharp < 0 ? raw : raw.slice(0, sharp);
+  const inline = sharp < 0 ? null : raw.slice(sharp + 1) || null;
+  const effort = typeof profile?.reasoning_effort === 'string' && profile.reasoning_effort ? profile.reasoning_effort : null;
+  // `variant` follows modelSettings(): it is an OpenCode setting, so Codex/AGY never report one.
+  const pinned = backend === 'opencode' ? inline ?? effort : null;
+  const saved = pinned || backend !== 'opencode' ? null : withSavedOpenCodeVariant(base);
+  const slash = base.indexOf('/');
+  return {
+    backend,
+    provider: slash < 0 ? null : base.slice(0, slash),
+    model: slash < 0 ? base : base.slice(slash + 1),
+    variant: pinned ?? (saved?.includes('#') ? saved.slice(saved.indexOf('#') + 1) : null),
+    source: pinned ? 'explicit' : saved?.includes('#') ? 'saved-variant' : 'explicit',
+  };
 }
 
 function initialize(project) {
@@ -279,6 +357,9 @@ function createTask(ws, from) {
   assertManaged(ws);
   const task = read(path.resolve(from));
   validateContract(task);
+  // Fail before any write: a refused config must not leave a task directory without state.json
+  // (`status` cannot read such a directory and exits 1 for the whole project).
+  const config = configFor(ws.store);
   const id = `${new Date().toISOString().slice(0, 19).replace(/\D/g, '')}-${crypto.randomBytes(3).toString('hex')}`;
   const files = taskFiles(ws.store, id);
   const branch = ws.mode === 'worktree' ? assertTaskBranch(ws.work) : null;
@@ -289,7 +370,7 @@ function createTask(ws, from) {
     worktree: branch ? { mode: 'attach', main: ws.main, branch, base_head: baseline.head } : null,
     status: 'ready', phase: task.planner ? 'planner' : 'scan',
     contract_hash: hash(fs.readFileSync(files.contract)), calls_used: 0, repairs_used: 0, elapsed_ms: 0,
-    limits: configFor(ws.store).limits,
+    limits: config.limits,
     artifact: baseline.content, roles: {}, attempts: [], checks: [], active: [], created_at: stamp(), failure: null });
   writeHandoff(ws, id);
   return { id, directory: files.dir, next: `plan ${id}` };
@@ -589,6 +670,8 @@ export async function runTask(ws, id, resume = false) {
 function doctor(ws) {
   const config = configFor(ws.store);
   const branch = branchOf(ws.work);
+  const hostProviders = hostProviderIds();
+  const routeWarnings = [];
   const roles = Object.entries(config.roles).map(([role, profile]) => {
     let configurationError = null;
     try { validateProfile(profile); } catch (error) { configurationError = error.message; }
@@ -596,14 +679,23 @@ function doctor(ws) {
     const modelReady = modelExplicit || ['codex', 'agy'].includes(profile.backend);
     const binary = profile.executable && fs.existsSync(profile.executable) && (process.platform !== 'win32' || /\.exe$/i.test(profile.executable));
     const result = binary ? spawnSync(profile.executable, ['--version'], { encoding: 'utf8', timeout: 15000, windowsHide: true }) : null;
+    const route = modelRoute(profile);
+    const shape = !modelExplicit || modelShapeOf(profile.backend, profile.model.trim()) ? 'ok' : 'invalid';
+    // Only OpenCode resolves a provider segment; Codex/AGY ids are host-resolved, so nothing to compare.
+    const providerKnown = profile.backend !== 'opencode' ? 'unknown'
+      : route.provider && hostProviders ? hostProviders.includes(route.provider) : 'unknown';
+    // Routing facts are reported, never enforced: they describe the host environment, not the contract.
+    if (shape === 'invalid') routeWarnings.push(`角色 ${role} 的 model 形态非法：${profile.model}；${profile.backend === 'opencode' ? '期望 <provider>/<model-id>[#variant]' : '期望裸模型 id，不带 provider 前缀或 #variant'}，这段串仍会原样传给宿主，先修写法再跑`);
+    if (providerKnown === false) routeWarnings.push(`角色 ${role} 的 provider ${route.provider} 不在宿主 OpenCode providers/provider 键里（${hostProviders.join('、')}）；核对是否把上一层网关或内置 provider 名写错`);
     return { role, backend: profile.backend, executable: profile.executable, model: modelExplicit ? profile.model : 'host-default',
       ...(!configurationError ? modelSettings(profile) : {}),
       available: Boolean(binary && result.status === 0), version: result?.stdout?.trim() ?? null,
       model_explicit: modelExplicit, model_source: modelExplicit ? 'explicit' : 'host-default',
+      model_shape: shape, provider_known: providerKnown,
       ready: Boolean(binary && result.status === 0 && modelReady && !configurationError), configuration_error: configurationError };
   });
   return { version, workspace: { mode: ws.mode, work: ws.work, main: ws.main, store: ws.store, branch: branch.branch, head: branch.head },
-    roles, authentication: 'not_checked', provider_routing: 'not_checked', money_limit: 'not enforced', permissions: 'host policy; no bypass flags',
+    roles, route_warnings: routeWarnings, authentication: 'not_checked', provider_routing: 'not_checked', money_limit: 'not enforced', permissions: 'host policy; no bypass flags',
     note: 'Binary/version discovery only. Authentication, model routing and output protocol require a real task.' };
 }
 
@@ -671,8 +763,10 @@ async function main(argv) {
   if (command === 'plan') {
     const task = read(files.contract), config = configFor(store); validateContract(task);
     const roles = [...(task.planner ? ['planner'] : []), 'scan', 'test-plan', ...(task.mode === 'develop' ? ['implement'] : []), 'review'];
+    const selected = Object.fromEntries(roles.map(role => [role, config.roles[role]]));
     console.log(JSON.stringify({ id, goal: task.goal, mode: task.mode, scope: task.scope, acceptance: task.acceptance, checks: task.checks,
-      roles: Object.fromEntries(roles.map(role => [role, config.roles[role]])), limits: config.limits, cost: config.cost,
+      roles: selected, routes: Object.fromEntries(Object.entries(selected).map(([role, profile]) => [role, modelRoute(profile)])),
+      limits: config.limits, cost: config.cost,
       next: `run ${id}`, launches_agents: false }, null, 2)); return;
   }
   if (command === 'cancel') { const state = read(files.state); if (state.status !== 'running') throw new Error('No running task to cancel; inspect status/resume'); write(files.cancel, { requested_at: stamp() }); console.log('Cancellation requested; wait for state.active=[] before resuming'); return; }
