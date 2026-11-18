@@ -322,7 +322,7 @@ Copy-Item "$src\*" $dst -Recurse -Force      # 整份覆盖中央副本
 # 3) 跑校验：0 差异才算完成
 node scripts\verify-distribution.mjs
 # 4) Multica 工作区里的那份（可选，但它既不读丙区也不读本仓库）
-multica skill refresh <skill-id>
+#  从 URL 导入的用 multica skill refresh；本地导入的它拒绝刷新（exit 5），改用 multica skill update --content-file 改正文、multica skill files upsert 改其余文件
 ```
 
 - 末行 `source=… mirror=… targets=11 differing=0 missing=0` 才算完成；`differing>0` 会列出每个文件的
