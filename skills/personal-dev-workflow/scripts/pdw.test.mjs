@@ -780,6 +780,26 @@ await test('an unknown field inside a role profile is rejected with its path', (
   assert.ok(refused.stderr.includes('roles.scan.temperature'));
   assert.ok(refused.stderr.includes('supported: backend, executable, model, args, standalone, reasoning_effort, prompt_guidance'));
 });
+await test('a task directory without state.json is reported as broken, not fatal', () => {
+  const t = setup('status-broken-task');
+  const broken = path.join(t.root, '.pdw', 'tasks', 'half-made');
+  fs.mkdirSync(broken);
+  fs.writeFileSync(path.join(broken, 'contract.json'), JSON.stringify({ goal: 'x', mode: 'develop', scope: [], acceptance: [], checks: [] }));
+  const report = JSON.parse(command(t.root, ['status'], 0).stdout);
+  assert.equal(report.length, 2);
+  const entry = report.find(item => item.id === 'half-made');
+  assert.equal(entry.status, 'broken');
+  assert.match(entry.failure, /state\.json unreadable/);
+  assert.ok(report.some(item => item.id === t.id && item.status !== 'broken'));
+});
+await test('status reports an empty list when the project has no tasks directory', () => {
+  const root = path.join(evidence, 'status-no-tasks');
+  fs.mkdirSync(path.join(root, '.pdw'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.pdw', 'config.json'), JSON.stringify({ roles: {}, limits: { max_cli_calls: 8, max_repairs: 1, call_timeout_seconds: 10, task_timeout_seconds: 60 }, cost: { status: 'unknown' } }));
+  const report = JSON.parse(command(root, ['status'], 0).stdout);
+  assert.deepEqual(report, []);
+});
+
 await test('a refused config leaves no half-created task directory', () => {
   const t = setup('config-new-atomic');
   t.config.roles.scan.temperature = 0.2;

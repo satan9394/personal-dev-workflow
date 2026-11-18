@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 
 ## [main] — 2026-11-17 — Run under junctions, and document the real distribution chain
 
+
+### Task status
+
+- pdw status without an id no longer dies on one bad task directory: a directory whose state.json is missing or unreadable is listed as broken with the reason, the other tasks still print, and a project with no tasks directory returns an empty list instead of ENOENT. Two cases added; suite 62 to 64.
+
 ### Multica workspace
 
 - SKILL.md gains a section for running inside a Multica workspace: only the squad leader may initialise, write contracts or dispatch roles; every other member executes only what it was handed and never starts a second orchestration.

@@ -168,7 +168,7 @@ This repo practices what the skill preaches:
 - `node --test skills/personal-dev-workflow/scripts/drivers.test.mjs` — native discovery, profile
   policies and malformed-output rejection, plus the Windows Codex npm layout, Chinese paths and
   argument boundaries.
-- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 62 fixture orchestration cases,
+- `node skills/personal-dev-workflow/scripts/pdw.test.mjs` — 64 fixture orchestration cases,
   including ignored Git roots/scope, evidence freshness, budgets, locks, cancellation and failure
   reporting, the two `snapshot()` guard rails (a foreign work tree, and a covered set with no readable
   file) and the bundled updater (byte comparison, backup, idempotence, untouched `.pdw/config.json`).

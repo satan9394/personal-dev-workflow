@@ -754,8 +754,18 @@ async function main(argv) {
   if (command === 'new') { const from = flag('--from'); if (!from) throw new Error('new requires --from <contract.json>; the Skill prepares this contract for the user'); console.log(JSON.stringify(createTask(ws, from), null, 2)); return; }
   const id = args.shift();
   if (command === 'status' && !id) {
-    const tasks = fs.readdirSync(path.join(store, 'tasks')).map(name => read(taskFiles(store, name).state));
-    console.log(JSON.stringify(tasks.map(s => ({ id: s.id, status: s.status, phase: s.phase, calls_used: s.calls_used, failure: s.failure })), null, 2)); return;
+    const tasksDir = path.join(store, 'tasks');
+    const names = fs.existsSync(tasksDir) ? fs.readdirSync(tasksDir, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name) : [];
+    // One half-created or corrupt task directory must not hide every other task.
+    const tasks = names.map(name => {
+      try {
+        const state = read(taskFiles(store, name).state);
+        return { id: state.id ?? name, status: state.status, phase: state.phase, calls_used: state.calls_used, failure: state.failure };
+      } catch (error) {
+        return { id: name, status: 'broken', phase: null, calls_used: null, failure: 'state.json unreadable: ' + (error.code ?? error.message) };
+      }
+    });
+    console.log(JSON.stringify(tasks, null, 2)); return;
   }
   const files = taskFiles(store, id);
   if (command === 'handoff') { console.log(JSON.stringify(writeHandoff(ws, id), null, 2)); return; }
