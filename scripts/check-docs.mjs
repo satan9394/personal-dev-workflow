@@ -13,6 +13,7 @@
  *             2 a usage or repository read error.
  */
 import { readFileSync, existsSync, readdirSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -117,6 +118,35 @@ function checkUnpublished() {
   record('opencode-unpublished', hit ? 'FAIL' : 'ok', hit ? `package.json.files includes ${hit}` : '.opencode/ is not published');
 }
 
+/** Per-file sha256 of a directory tree, keyed by forward-slash relative path. */
+function hashTree(root) {
+  const map = new Map();
+  const walk = (dir, prefix) => readdirSync(dir, { withFileTypes: true }).forEach(entry => {
+    const relative = prefix ? prefix + '/' + entry.name : entry.name;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) return walk(full, relative);
+    if (entry.isFile()) map.set(relative, createHash('sha256').update(readFileSync(full)).digest('hex'));
+  });
+  walk(root, '');
+  return map;
+}
+
+/** The repository copy and the skills-manager source must carry the same bytes; a refresh that never ran shows up here. */
+function checkRepoAgainstDistribution() {
+  const source = join(home, '.agents_four_skills', skillName);
+  if (!existsSync(source)) return record('repo-vs-distribution', 'skip', source + ' not found');
+  if (!existsSync(skillDir)) return record('repo-vs-distribution', 'FAIL', 'skills/personal-dev-workflow is missing');
+  const repoFiles = hashTree(skillDir), sourceFiles = hashTree(source);
+  const differing = [];
+  for (const [name, digest] of repoFiles) {
+    if (!sourceFiles.has(name)) differing.push(name + ' (missing in 丙区)');
+    else if (sourceFiles.get(name) !== digest) differing.push(name);
+  }
+  for (const name of sourceFiles.keys()) if (!repoFiles.has(name)) differing.push(name + ' (only in 丙区)');
+  if (differing.length) return record('repo-vs-distribution', 'FAIL', differing.length + ' file(s) differ: ' + differing.join('; ') + '; refresh per DEPLOYMENT §5.1 if intentional');
+  record('repo-vs-distribution', 'ok', repoFiles.size + ' files match 丙区');
+}
+
 try {
   checkFileCount();
   checkOpenCodeKey();
@@ -125,6 +155,7 @@ try {
   checkReadmeCount();
   checkStaleClaims();
   checkUnpublished();
+  checkRepoAgainstDistribution();
 } catch (error) {
   console.error(`check-docs: ${error.message}`);
   process.exit(2);

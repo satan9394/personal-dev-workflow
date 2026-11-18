@@ -33,7 +33,7 @@
 | skills-manager 记录 | `personal-dev-workflow`，`id=d3669121-c7d7-440a-b34e-b9fff375b582`，`source_type=local`、`source_ref` 指丙区、`enabled=1` |
 
 `README.md` / `AGENTS.md` / `RELEASING.md` 只引用本节，不复述上表；机器可核的部分由
-`node scripts/check-docs.mjs` 检查（`--strict` 时环境缺失也算失败）。
+`node scripts/check-docs.mjs` 检查（`--strict` 时环境缺失也算失败）；其中 repo-vs-distribution 一项逐文件比仓库与丙区，所以提交后没刷丙区会让它变红，那是提醒不是误报。
 
 其余操作边界：
 

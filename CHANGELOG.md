@@ -38,6 +38,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
   cc-switch prompt library (`frame`, `root`, `impact`, `archaeology`, `newcomer`, `slop`,
   `doc-truth`, `retro`) plus a `pdw-audit` orchestrator. They are repository-local development
   tooling, not part of the published Skill (`package.json.files` does not include `.opencode/`).
+`scripts/check-docs.mjs` 增加`repo-vs-distribution`一项：逐文件比仓库与丙区，提交后没刷新就会红，不再只是沉默的漂移。
 - README and RELEASING now describe the four-layer chain that actually exists (丙区 `local` source →
   central copy → 11 junctions), and README's fixture count is corrected from 38 to 62.
 
