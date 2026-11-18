@@ -114,7 +114,7 @@ OpenCode TUI 的 `/effort`（`/thinking`、`/variants`）选择模型 variant。
 { "backend": "opencode", "model": "<provider>/<model-id>", "reasoning_effort": "high" }
 ```
 
-也可直接写 `model: "<provider>/<model-id>#high"`，自定义 variant 使用此形式；不能同时再设置 reasoning_effort。不要给其他 OpenCode 版本猜测参数：先核对其 run --help，旧版可能使用不同入口。档位词表由该模型在宿主里声明的 `variants` 决定，不同提供方不同：DeepSeek V4.1 Flash 实测为 `low/high/max/off`（`off` 关闭思考），**没有** `medium`；GPT-6.1 Sol 实测为 `low/medium/high/xhigh/max/ultra`。写之前查声明，不能由 flash 后缀推断能力。
+也可直接写 `model: "<provider>/<model-id>#high"`，自定义 variant 使用此形式；不能同时再设置 reasoning_effort。不要给其他 OpenCode 版本猜测参数：先核对其 run --help，旧版可能使用不同入口。档位词表由该模型在宿主里声明的 `variants` 决定，不同提供方不同：DeepSeek V4.1 Flash 的 variants 是 `none/low/high/max`（网关侧最低档叫 `none`，不叫 `off`；它仍有思考，不是关思考），**没有** `medium`；GPT-6.1 Sol 实测为 `low/medium/high/xhigh/max/ultra`。写之前查声明，不能由 flash 后缀推断能力。
 
 2026-10-17 核对官方 v2.0.32 源码：[TUI effort 别名](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/tui/src/app.tsx#L950)、[后台模型变体解析](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/cli/src/run/run.ts#L176)。TUI 和 run 属于同一安装的不同入口；界面能切换不意味着已有 PDW 配置自动继承。
 
@@ -127,6 +127,19 @@ OpenCode TUI 的 `/effort`（`/thinking`、`/variants`）选择模型 variant。
 核对 TUI 与模型时只提取模型 ID、variants 与对应的 effort 字段。OpenCode 2.0 的 api model.list 原始返回包含认证设置，禁止直接打印或保存整个响应。
 
 2026-10-16 核对来源：[OpenAI 模型选择](https://developers.openai.com/api/docs/guides/model-selection)、[模型与提示指导](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.1-sol)、[减少过度提示](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)、[Codex 单次运行配置](https://learn.chatgpt.com/docs/developer-settings)。运行器不自动检索这些页面，也不自动生成最佳提示；这些判断由使用 Skill 的协调者完成，效果仍须真实任务验证。
+
+### 思考档位怎么选（2026-11-18 实测）
+
+在 OpenCode + DeepSeek V4.1 Flash 上跑过三轮对照（4 组合成任务 192 次、5 套公开基准 336 次、AIME 2024 全 30 题 120 次），日常角色一律用 `none`。
+
+- 数学：AIME 全 30 题（32k 输出上限）off 28/30、`low` 30/30、`high` 30/30、`max` 29/30；`low` 满分且最便宜（中位 16.9 秒、0.068 美元），`max` 中位 42.1 秒、0.119 美元，约 2.5 倍耗时、1.8 倍成本。
+- 编码：HumanEval 16 题四档全对；合成 C 组（修失败测试）四档 12/12；`max` 比 `none` 慢 39%、成本约 2 倍。
+- 通用组：GSM8K 与 MMLU-Pro 四档差距 0 到 1 题；四组合计 `none` 48/48、`low` 48/48、`high` 47/48、`max` 47/48。
+- 校正一条：早前 4k 输出上限下 `max` 在 AIME 只有 7/16、多条 502，那是推理吃满预算，不是能力差；放到 32k 后 `max` 追到 29/30，但仍不比 `low` 好。
+- 升档规则：角色用 `none` 做错、且错在推理链条上，重试一次 `low`；`low` 仍失败再人工判断。不自动进 `max`。带工具的循环更该降档，reasoning_content 会逐轮回传，高档每轮都更贵。
+- `none` 不等于关思考：实测中位仍有约 129 token reasoning；官方文档写的是 `none` 关闭思考，这条在本地网关路由上不成立。
+
+边界：题目无工具、单轮、多数在舒适区；agentic 硬题不在样本内，`max` 在那类任务上仍可能抬高上限。别把日常用 `none` 读成 `max` 没用。
 
 ## 第三方 Agent 与宿主子 Agent
 
