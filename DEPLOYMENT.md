@@ -30,6 +30,7 @@
 | junction | 11 条，全部指向中央副本：`~\.claude\skills`、`~\.codex\skills`、`~\.config\opencode\skills`、`~\.copilot\skills`、`~\.cursor\skills`、`~\.dsh\skills`、`~\.gemini\antigravity\skills`、`~\.kimi-code\skills`、`~\.minimax\skills`、`~\.omp\agent\skills`、`~\.pi\agent\skills` |
 | OpenCode 注册 | 读默认全局目录 `~\.config\opencode\skills`；`opencode.json` 顶层**没有** `skills` 键 |
 | DSH 注册 | `skill-filesystem.customSkillDirs` 为 `[]`（`includeDefaultRoots: false`）；入口是 `~\.dsh\skills` 的 junction |
+| Multica 副本 | workspace 内的 personal-dev-workflow（multica skill list 可查 id）；用 multica skill refresh 更新，不读丙区也不读本仓库 |
 | skills-manager 记录 | `personal-dev-workflow`，`id=d3669121-c7d7-440a-b34e-b9fff375b582`，`source_type=local`、`source_ref` 指丙区、`enabled=1` |
 
 `README.md` / `AGENTS.md` / `RELEASING.md` 只引用本节，不复述上表；机器可核的部分由
@@ -320,6 +321,8 @@ Copy-Item "$dst\*" $bak -Recurse -Force      # 复制备份，不移动、不删
 Copy-Item "$src\*" $dst -Recurse -Force      # 整份覆盖中央副本
 # 3) 跑校验：0 差异才算完成
 node scripts\verify-distribution.mjs
+# 4) Multica 工作区里的那份（可选，但它既不读丙区也不读本仓库）
+multica skill refresh <skill-id>
 ```
 
 - 末行 `source=… mirror=… targets=11 differing=0 missing=0` 才算完成；`differing>0` 会列出每个文件的

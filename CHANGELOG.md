@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 
 ## [main] — 2026-11-17 — Run under junctions, and document the real distribution chain
 
+### Multica workspace
+
+- SKILL.md gains a section for running inside a Multica workspace: only the squad leader may initialise, write contracts or dispatch roles; every other member executes only what it was handed and never starts a second orchestration.
+- DEPLOYMENT.md lists the Multica workspace copy as a fourth consumer, refreshed with multica skill refresh; it reads neither the shared area nor this repository.
+
 ### Skill content
 
 - **The entry guard compares real paths.** `pdw.mjs` and `viewer.mjs` decided "am I the script being run"

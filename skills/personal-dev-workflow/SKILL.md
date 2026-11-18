@@ -30,6 +30,15 @@ metadata:
 5. 程序实际执行验收命令；失败最多定向修复一次，再失败即停止。遇到范围变化、环境阻塞或不支持的输出协议，保留原始结果并交接，不能凭文字宣布通过。
 6. 查看 `status <id>` 和任务目录的 REPORT.md。想看“现在跑到哪、谁在干、用的什么模型”，用 `view` 起只读看板（默认 8891 端口，前台运行，Ctrl+C 结束）；它只读 `.pdw/tasks/` 与本机 Codex 会话日志，不写盘、不起模型。每个阶段程序自动生成 HANDOFF.md，命令与换对话流程见 [上下文接续](references/runtime.md#上下文接续与文档维护)。中断后用 `resume <id>`；停止用 `cancel <id>`。切会话不重置额度，不通过另建任务规避原任务限额。
 
+## 在 Multica 工作区里使用时
+
+Multica 的 squad 自带 leader / worker 与 runtime 调度，和 PDW 的「唯一协调者」在同一层，两套同时开工会互相派活。在这个宿主里按四条走：
+
+- 只有 squad 的 leader（或正在和用户对话的那个 agent）可以 init、建契约、派角色；其他成员收到这段 Skill 文本时不初始化、不建卡、不派活，只执行被分到的部分。
+- 一个任务只走一条编排：要么 squad 调度，要么 PDW 的 CLI 接力；不要一边用 squad 派活、一边再让 PDW 起会话。
+- Multica 里那份 Skill 是 workspace 内的独立副本，不读丙区也不读本仓库，更新用 multica skill refresh（id 见 DEPLOYMENT.md 第一节那张表）。
+- 完成判据不变：以退出码与检查项为准，不以 agent 说自己做完为准；squad 的完成通知不算验收。
+
 ## 工作树模式
 
 若你在该仓库的一棵 linked worktree 里运行，程序自动把代码根设为该工作树、状态根仍留在主 checkout 的 `.pdw`；新任务记录任务分支与基线提交，允许在该分支上提交，但禁止 push、合并、rebase、切分支和越界提交。主 checkout 未初始化、或工作树自己带 `.pdw` 时直接拒绝，不静默分叉状态。程序不创建、也不删除工作树——创建与清理交给宿主的工作树工具（如 OpenCode 的 worktree 操作）或你手工执行。
