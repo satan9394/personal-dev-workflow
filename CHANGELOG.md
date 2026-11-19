@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 ## [main] — 2026-11-17 — Run under junctions, and document the real distribution chain
 
 
+
+### Codex models
+
+- references/runtime.md documents the GPT-6.2 family: Sol (2 USD input / 10 USD output per million tokens, the everyday coding model) and Astra (8 / 40, the hardest work). Both reject reasoning_effort none. The implement role should pin gpt-6.2-sol with medium instead of inheriting the desktop default of ultra.
+
 ### Task status
 
 - pdw status without an id no longer dies on one bad task directory: a directory whose state.json is missing or unreadable is listed as broken with the reason, the other tasks still print, and a project with no tasks directory returns an empty list instead of ENOENT. Two cases added; suite 62 to 64.
