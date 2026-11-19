@@ -128,18 +128,19 @@ OpenCode TUI 的 `/effort`（`/thinking`、`/variants`）选择模型 variant。
 
 2026-10-16 核对来源：[OpenAI 模型选择](https://developers.openai.com/api/docs/guides/model-selection)、[模型与提示指导](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.1-sol)、[减少过度提示](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)、[Codex 单次运行配置](https://learn.chatgpt.com/docs/developer-settings)。运行器不自动检索这些页面，也不自动生成最佳提示；这些判断由使用 Skill 的协调者完成，效果仍须真实任务验证。
 
-### 思考档位怎么选（2026-11-18 实测）
+### 思考档位怎么选（2026-11-18，依据 ds-effort-compare 的 SELECTION.md）
 
-在 OpenCode + DeepSeek V4.1 Flash 上跑过三轮对照（4 组合成任务 192 次、5 套公开基准 336 次、AIME 2024 全 30 题 120 次），日常角色一律用 `none`。
+适用 magpie/auto/deepseek-v4.1-flash（variants 为 none/low/high/max）。换模型或换路由要重测，不能平移。
 
-- 数学：AIME 全 30 题（32k 输出上限）off 28/30、`low` 30/30、`high` 30/30、`max` 29/30；`low` 满分且最便宜（中位 16.9 秒、0.068 美元），`max` 中位 42.1 秒、0.119 美元，约 2.5 倍耗时、1.8 倍成本。
-- 编码：HumanEval 16 题四档全对；合成 C 组（修失败测试）四档 12/12；`max` 比 `none` 慢 39%、成本约 2 倍。
-- 通用组：GSM8K 与 MMLU-Pro 四档差距 0 到 1 题；四组合计 `none` 48/48、`low` 48/48、`high` 47/48、`max` 47/48。
-- 校正一条：早前 4k 输出上限下 `max` 在 AIME 只有 7/16、多条 502，那是推理吃满预算，不是能力差；放到 32k 后 `max` 追到 29/30，但仍不比 `low` 好。
-- 升档规则：角色用 `none` 做错、且错在推理链条上，重试一次 `low`；`low` 仍失败再人工判断。不自动进 `max`。带工具的循环更该降档，reasoning_content 会逐轮回传，高档每轮都更贵。
-- `none` 不等于关思考：实测中位仍有约 129 token reasoning；官方文档写的是 `none` 关闭思考，这条在本地网关路由上不成立。
+- 取数、格式转换、整理文件、跑现成命令：none。GSM8K 24/24 四档持平，合成 A 组 48/48。
+- 写业务代码、改单文件、做总结、中等调试：low。HumanEval 16/16 全档通过，low 的成本与 none 接近。
+- 硬数学、跨文件重构、根因排查、长链条推理：low 或 high。AIME 全 30 题 low 30/30（16.9s、0.068 美元），high 30/30（20.0s、0.078 美元）。
+- 默认档与交互式会话：none。max 不设默认：32k 上限下 29/30、42.5s、0.119 美元；4k 上限下 7/16 且直接 502。
+- 角色落点：scan 用 none，test-plan 用 low，review 用 high；implement 走 Codex、planner 走 AGY，不在本表范围。
+- none 不等于关思考：整体中位约 129 token，AIME 这类硬题上中位约 1400 token；档位与 reasoning 量不单调，不能用 token 数反推档位是否生效。
+- 带 tools 的多轮会话里 reasoning_content 会逐轮回传，高档每轮都更贵，子会话与 worker 用最低档；判断够不够只看结果与成本，同分选便宜的那档。
 
-边界：题目无工具、单轮、多数在舒适区；agentic 硬题不在样本内，`max` 在那类任务上仍可能抬高上限。别把日常用 `none` 读成 `max` 没用。
+边界：题目无工具、单轮、多数在舒适区；agentic 硬题不在样本内，max 在那类任务上仍可能抬高上限。别把日常用 none 读成 max 没用。
 
 ## 第三方 Agent 与宿主子 Agent
 
